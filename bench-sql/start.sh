@@ -32,11 +32,11 @@ LOG="$ROOT/bench-sql/results/$RUN_ID/run.log"
 export BACKEND DB_HOST DB_USERNAME DB_PASSWORD BASE_URL SSH_KEY
 export RESEED="$HERE/reseed.sh"
 if [ -n "${DETACH:-}" ]; then
-  nohup setsid "$ROOT/k6/find-max.sh" bench-sql > "$LOG" 2>&1 < /dev/null &
+  nohup setsid "$ROOT/k6/find-max.sh" bench-sql >> "$LOG" 2>&1 < /dev/null &
   echo "started run $RUN_ID in the background, log is $LOG"
   echo "it's done when $ROOT/bench-sql/results/$RUN_ID/search.json exists"
 else
   echo "run $RUN_ID, output is also saved to $LOG"
-  "$ROOT/k6/find-max.sh" bench-sql 2>&1 | tee "$LOG"
+  "$ROOT/k6/find-max.sh" bench-sql 2>&1 | tee -a "$LOG"
 fi
 echo "then run bench-sql/after.sh $RUN_ID on your machine"

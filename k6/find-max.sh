@@ -8,6 +8,9 @@
 # On a pass double N until something fails. After a fail, try halfway between the last
 # pass and the fail. Stop when the two are TOL users apart.
 #
+# If the run stopped half way, start it again with the same RUN_ID, START set to the pass it was on,
+# and LO / HI set to the highest pass and the lowest fail so far. The new passes go in the same folder.
+#
 # RESEED is run before every pass, it cleans and seeds the database and loads the file list.
 # Results go in <arm>/results/<run id>/vus-<N>/ (k6.csv.gz, summary.json, seed.csv, pass.json).
 # bench-sql/after.sh adds the CloudWatch numbers, common/summarize.py makes tables from the raw data.
@@ -62,8 +65,8 @@ EOF
   return 2
 }
 
-lo=0   # highest users that passed
-hi=0   # lowest users that failed, 0 while nothing has failed
+lo="${LO:-0}"   # highest users that passed
+hi="${HI:-0}"   # lowest users that failed, 0 while nothing has failed
 n="$START"
 
 for pass in $(seq 1 "$MAX_PASSES"); do
