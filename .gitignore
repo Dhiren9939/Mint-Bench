@@ -2,6 +2,7 @@
 *.tfstate
 *.tfstate.*
 *.tfvars
+tfplan
 *.pem
 __pycache__/
 bench-sql/bench.env

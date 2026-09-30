@@ -27,7 +27,7 @@ Mint-Bench/
 
 ## The users
 
-Every VU loops forever, with a 5 second pause before it starts the loop again (`THINK_MS`). If the file list has files it uploads 2.6% of the time and downloads the rest. If the list is empty it uploads.
+Every VU loops forever, with a 5 second pause before it starts the loop again (`THINK_MS`). The pause is the same every time. Set `THINK_JITTER=0.5` to make it random between 2.5 and 7.5 seconds (same average) so the users don't stay in step. If the file list has files it uploads 2.6% of the time and downloads the rest. If the list is empty it uploads.
 
 - Upload: POST the upload link, sleep 1 to 3 seconds for the S3 upload, PATCH to confirm, add the file to the list with 15 to 60 downloads.
 - Download: pick a random file from the list and GET it.
