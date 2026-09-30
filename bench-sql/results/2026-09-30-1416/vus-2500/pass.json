@@ -1,0 +1,1 @@
+{"vus": 2500, "result": "fail", "k6_exit": 99, "warmup_s": 120, "bench_s": 300, "cooldown_s": 120, "start": 1790777798, "bench_start": 1790777918, "bench_end": 1790778218, "end": 1790778343}

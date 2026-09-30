@@ -1,0 +1,205 @@
+{
+    "metrics": {
+        "http_req_tls_handshaking": {
+            "med": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "avg": 0,
+            "max": 0
+        },
+        "http_req_sending": {
+            "med": 0.010357,
+            "p(95)": 0.015193449999999982,
+            "p(99)": 0.023379210000000022,
+            "avg": 0.010817742537623867,
+            "max": 3.317277
+        },
+        "iteration_duration": {
+            "med": 5004.43787,
+            "p(95)": 5032.8568,
+            "p(99)": 7334.935638000005,
+            "avg": 5068.967142048239,
+            "max": 10753.262326
+        },
+        "http_req_duration": {
+            "avg": 16.2359905823564,
+            "max": 3229.910512,
+            "med": 3.6817475,
+            "p(95)": 12.889333999999975,
+            "p(99)": 183.6390935600006
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 192432,
+            "value": 0
+        },
+        "http_req_waiting": {
+            "max": 3229.847537,
+            "med": 3.6288074999999997,
+            "p(95)": 12.814092549999998,
+            "p(99)": 182.60914978000002,
+            "avg": 16.173527036132416
+        },
+        "http_req_duration{name:download,phase:bench}": {
+            "p(99)": 391.335069200006,
+            "avg": 20.677921753061437,
+            "max": 3229.910512,
+            "med": 3.734602,
+            "p(95)": 15.249855499999999,
+            "thresholds": {
+                "p(95)<200": false,
+                "p(99)<600": false
+            }
+        },
+        "iterations": {
+            "rate": 344.7235495336848,
+            "count": 187581
+        },
+        "http_req_duration{name:download_expired,phase:bench}": {
+            "med": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "avg": 0,
+            "max": 0,
+            "thresholds": {
+                "p(95)<200": false,
+                "p(99)<600": false
+            }
+        },
+        "http_req_failed{phase:bench}": {
+            "fails": 136452,
+            "passes": 0,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "checks": {
+            "fails": 0,
+            "passes": 192432,
+            "value": 1
+        },
+        "http_req_blocked": {
+            "max": 28.456236,
+            "med": 0.002662,
+            "p(95)": 0.003994,
+            "p(99)": 0.46776056000000005,
+            "avg": 0.010769382514342276
+        },
+        "http_req_receiving": {
+            "med": 0.032016,
+            "p(95)": 0.07538434999999995,
+            "p(99)": 0.4319807300000005,
+            "avg": 0.051645803686497634,
+            "max": 58.019965
+        },
+        "server_errors{phase:bench}": {
+            "passes": 0,
+            "fails": 136454,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_reqs": {
+            "count": 192432,
+            "rate": 353.6383859978677
+        },
+        "http_req_connecting": {
+            "med": 0,
+            "p(95)": 0,
+            "p(99)": 0.43490064000000017,
+            "avg": 0.007320308306310785,
+            "max": 28.418372
+        },
+        "checks{phase:bench}": {
+            "passes": 136454,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "vus": {
+            "min": 7,
+            "max": 2250,
+            "value": 7
+        },
+        "http_req_duration{expected_response:true}": {
+            "max": 3229.910512,
+            "med": 3.6817475,
+            "p(95)": 12.889333999999975,
+            "p(99)": 183.6390935600006,
+            "avg": 16.2359905823564
+        },
+        "data_received": {
+            "count": 451701411,
+            "rate": 830106.0007639036
+        },
+        "http_req_duration{name:confirm,phase:bench}": {
+            "med": 4.841949,
+            "p(95)": 12.959541399999992,
+            "p(99)": 158.4496368399989,
+            "avg": 17.56512586507706,
+            "max": 2583.207075,
+            "thresholds": {
+                "p(95)<200": false,
+                "p(99)<600": false
+            }
+        },
+        "data_sent": {
+            "count": 155263828,
+            "rate": 285333.25817832036
+        },
+        "server_errors": {
+            "passes": 0,
+            "fails": 192432,
+            "value": 0
+        },
+        "vus_max": {
+            "value": 2250,
+            "min": 2250,
+            "max": 2250
+        },
+        "http_req_duration{name:upload,phase:bench}": {
+            "avg": 26.43366200935129,
+            "max": 3211.299995,
+            "med": 6.356107,
+            "p(95)": 22.973112699999998,
+            "p(99)": 478.65890539999873,
+            "thresholds": {
+                "p(95)<200": false,
+                "p(99)<600": false
+            }
+        }
+    },
+    "root_group": {
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "download as expected": {
+                    "fails": 0,
+                    "name": "download as expected",
+                    "path": "::download as expected",
+                    "id": "8b2e3882e42c9b95ad78522cffe6f74f",
+                    "passes": 182730
+                },
+                "upload link 201": {
+                    "fails": 0,
+                    "name": "upload link 201",
+                    "path": "::upload link 201",
+                    "id": "b0671a8fc9ce929c6d3fdf86e8c0349e",
+                    "passes": 4851
+                },
+                "confirm 200": {
+                    "id": "a5ce7b00743e833ed573d47ccbb672d3",
+                    "passes": 4851,
+                    "fails": 0,
+                    "name": "confirm 200",
+                    "path": "::confirm 200"
+                }
+            },
+        "name": ""
+    }
+}
