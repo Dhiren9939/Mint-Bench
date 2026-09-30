@@ -92,11 +92,14 @@ The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I
    - `pass.json`, pass or fail and the warm up, bench and end times
 
    `search.json` in the run folder has the answer. `summarize.py` adds `stats.csv` (per phase and request name: count, rps, p50, p95, p99, avg, max, failed, 5xx) and `timeline.csv` (the same per 10 seconds, with the users) to every attempt, and `attempts.csv` to the run folder, the bench part of every attempt in one file.
-4. When the run is done, on your machine:
+4. When the run is done, on the load generator run `bench-sql/after.sh` (it takes the latest run, or pass a run id). It makes the tables and pulls the CloudWatch numbers for every attempt into each attempt's `metrics.csv`. It reads CloudWatch with the box's own IAM role (the `read_metrics` policy in `loadgen/main.tf`) and installs the aws CLI if it's missing. Wait a few minutes after the last attempt since CloudWatch is behind.
+
+   `start.sh` and `after.sh` read their settings from `bench-sql/bench.env` on the load generator, copy `bench.env.example` and fill it in. It's gitignored.
+5. Get the results, raw data included, onto your machine before tearing anything down:
    ```bash
-   LOADGEN_IP=... BACKEND_ID=i-... LOADGEN_ID=i-... DB_ID=<rds identifier> bench-sql/after.sh <run-id>
+   LOADGEN_IP=... SSH_KEY=<mintkey.pem> bench-sql/fetch.sh <run-id>
    ```
-   It runs `summarize.py` on the load generator, copies the results here and pulls the CloudWatch numbers for every attempt (each gets its own `metrics.csv`). Wait a few minutes after the last attempt since CloudWatch is behind, and do it before tearing anything down.
+   The raw `k6.csv.gz` files stay on disk here for any deeper analysis later, git ignores them because they're too big to commit.
 
 ## Notes
 

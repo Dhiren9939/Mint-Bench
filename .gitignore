@@ -4,5 +4,6 @@
 *.tfvars
 *.pem
 __pycache__/
+bench-sql/bench.env
 # raw k6 output is too big for git, keep it somewhere else
 **/results/**/k6.csv*

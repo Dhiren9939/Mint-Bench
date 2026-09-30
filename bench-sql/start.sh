@@ -10,9 +10,10 @@
 # Any find-max.sh setting (START, TOL, BENCH_S ...) passes through.
 set -euo pipefail
 
+HERE="$(cd "$(dirname "$0")" && pwd)"
+[ -f "$HERE/bench.env" ] && { set -a; . "$HERE/bench.env"; set +a; }
 : "${BACKEND:?}" "${DB_HOST:?}" "${DB_USERNAME:?}" "${DB_PASSWORD:?}"
 BASE_URL="${BASE_URL:-http://mint-bench-sql.dhiren.xyz}"
-HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
 export RUN_ID="${RUN_ID:-$(date -u +%Y-%m-%d-%H%M)}"
 

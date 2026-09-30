@@ -63,6 +63,20 @@ resource "aws_iam_role_policy_attachment" "cloudwatch_agent" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
+# after.sh reads the run's metrics from CloudWatch on this box
+resource "aws_iam_role_policy" "read_metrics" {
+  name = "mint-loadgen-read-metrics"
+  role = aws_iam_role.loadgen.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["cloudwatch:GetMetricData", "cloudwatch:ListMetrics"]
+      Resource = "*"
+    }]
+  })
+}
+
 resource "aws_iam_instance_profile" "loadgen" {
   name = "mint-loadgen-profile"
   role = aws_iam_role.loadgen.name

@@ -1,36 +1,36 @@
 #!/usr/bin/env bash
-# Run this on your machine once a run has finished. It makes the tables on the load generator,
-# copies the results here and pulls the CloudWatch numbers for every attempt.
+# Run this on the load generator once a run has finished. It makes the tables from the raw k6
+# data and pulls the CloudWatch numbers for every attempt, all into the run folder.
 #
-#   LOADGEN_IP=... BACKEND_ID=i-... LOADGEN_ID=i-... DB_ID=<rds identifier> bench-sql/after.sh <run-id>
+#   bench-sql/after.sh [run-id]        (the latest run if you leave the id out)
 #
-# SSH_KEY=<path to mintkey.pem> if your key isn't already loaded. Needs the aws CLI logged in.
-# Do it before tearing anything down.
+# Needs BACKEND_ID and DB_ID, see bench.env.example. Do it before tearing anything down.
 set -euo pipefail
-
-RUN="${1:?usage: after.sh <run-id>}"
-: "${LOADGEN_IP:?}" "${BACKEND_ID:?}" "${LOADGEN_ID:?}" "${DB_ID:?}"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
-PY="$(command -v python3 || command -v python)"
-SSH_OPTS=(-o StrictHostKeyChecking=accept-new)
-[ -n "${SSH_KEY:-}" ] && SSH_OPTS+=(-i "$SSH_KEY")
-REMOTE="admin@$LOADGEN_IP"
-DIR="Mint-Bench/bench-sql/results/$RUN"
+[ -f "$HERE/bench.env" ] && { set -a; . "$HERE/bench.env"; set +a; }
+: "${BACKEND_ID:?}" "${DB_ID:?}"
 
-ssh "${SSH_OPTS[@]}" "$REMOTE" "test -f $DIR/search.json" \
-  || { echo "run $RUN isn't finished yet, no search.json on the load generator. tail run.log there." >&2; exit 1; }
+RUN="${1:-$(ls -1t "$HERE/results" | head -1)}"
+DIR="$HERE/results/$RUN"
+[ -f "$DIR/search.json" ] || { echo "run $RUN isn't finished, no search.json in $DIR" >&2; exit 1; }
 
-echo "== making the tables on the load generator"
-ssh "${SSH_OPTS[@]}" "$REMOTE" "cd Mint-Bench && python3 common/summarize.py bench-sql $RUN"
+# the load generator's own instance id, from the metadata service
+token=$(curl -s -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60')
+LOADGEN_ID="${LOADGEN_ID:-$(curl -s -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/instance-id)}"
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-ap-south-1}"
 
-echo "== copying the results"
-mkdir -p "$HERE/results/$RUN"
-scp -r "${SSH_OPTS[@]}" "$REMOTE:$DIR/." "$HERE/results/$RUN/"
+command -v aws > /dev/null || sudo apt-get install -y awscli
+
+echo "== making the tables"
+python3 "$ROOT/common/summarize.py" bench-sql "$RUN"
 
 echo "== cloudwatch, one export per attempt"
-"$PY" "$ROOT/common/export-search.py" bench-sql "$RUN" --backend "$BACKEND_ID" --loadgen "$LOADGEN_ID" --db "$DB_ID"
+python3 "$ROOT/common/export-search.py" bench-sql "$RUN" --backend "$BACKEND_ID" --loadgen "$LOADGEN_ID" --db "$DB_ID"
 
-echo "== done, everything is in $HERE/results/$RUN"
-cat "$HERE/results/$RUN/search.json"
+echo "== done, everything is in $DIR"
+cat "$DIR/search.json"
+echo
+echo "copy it to your machine with:"
+echo "  scp -r -i <mintkey.pem> admin@<this box's ip>:$DIR ."
