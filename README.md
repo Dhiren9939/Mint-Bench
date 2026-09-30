@@ -81,7 +81,7 @@ The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I
    export BACKEND=admin@<backend ip> DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=...
    bench-sql/start.sh
    ```
-   `start.sh` checks the api, the ssh to the backend and Redis, then runs the search in the background so it survives a dropped ssh session. It prints the run id and where the log is. It's done when `bench-sql/results/<run-id>/search.json` shows up. It's the same as `RESEED=bench-sql/reseed.sh k6/find-max.sh bench-sql` if you want to run it in the foreground.
+   `start.sh` checks the api, the ssh to the backend and Redis, then runs the search and prints the progress in your terminal (a copy goes to `bench-sql/results/<run-id>/run.log`). It takes an hour or more and stops if the ssh session drops, so run it inside `tmux` (`sudo apt-get install -y tmux` if it's missing). `DETACH=1` runs it in the background instead, then you have to tail the log. It's done when it prints the answer and `search.json` shows up.
    It starts at 30 users. A pass doubles the users, a fail tries halfway between the last pass and the fail. It stops when they're 5 users apart. `START`, `TOL`, `MAX_VUS`, `REST_S` (rest between passes, 2 min) and `RUN_ID` are env vars.
 
    Before every pass `bench-sql/reseed.sh` cleans RDS, seeds 10000 files split evenly between 15 min, 30 min and 24 hr expiry, and loads the file list. RDS is only reachable from the backend so the seed runs there over ssh. The seeded expiry counts from seed time so every pass starts fresh.

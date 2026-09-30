@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Starts the bench-sql search on the load generator and leaves it running in the background,
-# so it keeps going if your ssh session drops. Connect with ssh -A first (see the README).
+# Runs the bench-sql search on the load generator and prints the progress here.
+# The whole search takes an hour or more and ends if your ssh session drops, so run it inside tmux,
+# or set DETACH=1 to run it in the background (then tail the log).
 #
 #   BACKEND=admin@<backend ip> DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=... bench-sql/start.sh
 #
@@ -29,9 +30,12 @@ LOG="$ROOT/bench-sql/results/$RUN_ID/run.log"
 
 export BACKEND DB_HOST DB_USERNAME DB_PASSWORD BASE_URL SSH_KEY
 export RESEED="$HERE/reseed.sh"
-nohup setsid "$ROOT/k6/find-max.sh" bench-sql > "$LOG" 2>&1 < /dev/null &
-
-echo "started run $RUN_ID"
-echo "watch it:  tail -f $LOG"
-echo "it's done when $ROOT/bench-sql/results/$RUN_ID/search.json exists"
+if [ -n "${DETACH:-}" ]; then
+  nohup setsid "$ROOT/k6/find-max.sh" bench-sql > "$LOG" 2>&1 < /dev/null &
+  echo "started run $RUN_ID in the background, log is $LOG"
+  echo "it's done when $ROOT/bench-sql/results/$RUN_ID/search.json exists"
+else
+  echo "run $RUN_ID, output is also saved to $LOG"
+  "$ROOT/k6/find-max.sh" bench-sql 2>&1 | tee "$LOG"
+fi
 echo "then run bench-sql/after.sh $RUN_ID on your machine"
