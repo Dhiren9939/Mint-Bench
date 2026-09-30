@@ -63,9 +63,9 @@ Every VU loops forever. If the file list has files it uploads 2.6% of the time a
 
 A file leaves the list as soon as it runs out of downloads. An expired file stays for 2 more minutes so people keep hitting expired files. Those 404s are expected and don't count as errors.
 
-Load goes 50, 100, 200, 400 VUs, 3 minutes each. Set `STAGES` to change it.
+A pass is k6 running N users: 5 minutes ramping up (warm up), 5 minutes holding N (the bench), 1 minute ramping down. Only the bench part counts for the thresholds. `WARMUP_S`, `BENCH_S` and `COOLDOWN_S` change the times.
 
-Thresholds are p95 under 200ms, p99 under 600ms, server errors under 1% and checks over 99%.
+A pass has to keep the thresholds: p95 under 200ms, p99 under 600ms, server errors under 1% and checks over 99%.
 
 The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I want to look deeper later. Still check the load generator CPU after a run, if it was maxed out the latency numbers are its fault.
 
@@ -75,20 +75,16 @@ The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I
    ```bash
    sudo env MINT_DIR=/opt/src/Mint BENCH_DIR=/opt/src/Mint-Bench DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=... bash /opt/src/Mint-Bench/bench-sql/setup-ec2.sh
    ```
-2. On the backend EC2 run the seed, RDS isn't reachable from anywhere else.
+2. Find the most users the arm holds. Connect to the load generator with `ssh -A` so it can reach the backend with your key (nothing gets stored on the box), then:
    ```bash
-   PGHOST=<rds endpoint> PGUSER=... PGPASSWORD=... PGDATABASE=mintdb ./seed-rds.sh 10000
+   git clone https://github.com/Dhiren9939/Mint-Bench.git && cd Mint-Bench
+   export BACKEND=admin@<backend ip> DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=...
+   RESEED=bench-sql/reseed.sh k6/find-max.sh bench-sql
    ```
-   It truncates `file_meta_data`, adds 10000 files split evenly between 15 min, 30 min and 24 hr expiry, and writes `seed.csv`. Do this right before the run since the expiry starts counting at seed time.
-3. Copy `seed.csv` to the load generator and keep a copy in `bench-sql/data/`.
-4. On the load generator: `./load-file-list.sh seed.csv`
-5. Run k6.
-   ```bash
-   K6_BINARY_PROVISIONING=true k6 run \
-     -e BASE_URL=http://mint-bench-sql.dhiren.xyz \
-     --out csv=results.csv --summary-export=summary.json k6/mint.js
-   ```
-6. Copy `k6.csv` and `summary.json` into `bench-sql/results/<run-id>/` and run the export script before tearing anything down.
+   It starts at 80 users. A pass doubles the users, a fail tries halfway between the last pass and the fail. It stops when they're 5 users apart. `START`, `TOL`, `MAX_VUS`, `REST_S` (rest between passes, 2 min) and `RUN_ID` are env vars.
+
+   Before every pass `bench-sql/reseed.sh` cleans RDS, seeds 10000 files split evenly between 15 min, 30 min and 24 hr expiry, and loads the file list. RDS is only reachable from the backend so the seed runs there over ssh. The seeded expiry counts from seed time so every pass starts fresh.
+3. Each pass leaves `bench-sql/results/<run-id>/vus-<N>/` with `k6.csv`, `summary.json`, `seed.csv` and `pass.json` (result and the bench start and end times). `search.json` in the run folder has the answer. Run the export script for the whole run before tearing anything down, from the first pass start to the last pass end.
 
 ## Notes
 

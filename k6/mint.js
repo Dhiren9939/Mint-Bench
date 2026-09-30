@@ -22,6 +22,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Rate, Counter } from 'k6/metrics';
+import exec from 'k6/execution';
 import redis from 'k6/x/redis';
 
 const BASE_URL = __ENV.BASE_URL || 'http://mint-bench-sql.dhiren.xyz';
@@ -41,28 +42,40 @@ const EXPIRIES = [
   { name: 'HOURS24', ms: 24 * 60 * 60 * 1000 },
 ];
 
-const STAGES = __ENV.STAGES ? JSON.parse(__ENV.STAGES) : [
-  { duration: '1m', target: 20 },
-  { duration: '30s', target: 50 }, { duration: '3m', target: 50 },
-  { duration: '30s', target: 100 }, { duration: '3m', target: 100 },
-  { duration: '30s', target: 200 }, { duration: '3m', target: 200 },
-  { duration: '30s', target: 400 }, { duration: '3m', target: 400 },
-  { duration: '1m', target: 0 },
-];
+// VUS users. Ramp up over WARMUP_S, hold for BENCH_S, ramp down over COOLDOWN_S.
+// Only requests made during the bench phase count toward the thresholds.
+const VUS = Number(__ENV.VUS || 80);
+const WARMUP_S = Number(__ENV.WARMUP_S || 300);
+const BENCH_S = Number(__ENV.BENCH_S || 300);
+const COOLDOWN_S = Number(__ENV.COOLDOWN_S || 60);
+
+function phase() {
+  const t = exec.instance.currentTestRunDuration / 1000;
+  return t < WARMUP_S ? 'warmup' : t < WARMUP_S + BENCH_S ? 'bench' : 'cooldown';
+}
 
 export const options = {
   scenarios: {
-    users: { executor: 'ramping-vus', startVUs: 0, stages: STAGES, gracefulRampDown: '30s' },
+    users: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: `${WARMUP_S}s`, target: VUS },
+        { duration: `${BENCH_S}s`, target: VUS },
+        { duration: `${COOLDOWN_S}s`, target: 0 },
+      ],
+      gracefulRampDown: '30s',
+    },
   },
   summaryTrendStats: ['med', 'p(95)', 'p(99)', 'avg', 'max'],
   thresholds: {
-    'http_req_duration{name:upload}': ['p(95)<200', 'p(99)<600'],
-    'http_req_duration{name:confirm}': ['p(95)<200', 'p(99)<600'],
-    'http_req_duration{name:download}': ['p(95)<200', 'p(99)<600'],
-    'http_req_duration{name:download_expired}': ['p(95)<200', 'p(99)<600'],
-    server_errors: ['rate<0.01'],
-    http_req_failed: ['rate<0.01'],
-    checks: ['rate>0.99'],
+    'http_req_duration{name:upload,phase:bench}': ['p(95)<200', 'p(99)<600'],
+    'http_req_duration{name:confirm,phase:bench}': ['p(95)<200', 'p(99)<600'],
+    'http_req_duration{name:download,phase:bench}': ['p(95)<200', 'p(99)<600'],
+    'http_req_duration{name:download_expired,phase:bench}': ['p(95)<200', 'p(99)<600'],
+    'server_errors{phase:bench}': ['rate<0.01'],
+    'http_req_failed{phase:bench}': ['rate<0.01'],
+    'checks{phase:bench}': ['rate>0.99'],
   },
 };
 
@@ -120,10 +133,10 @@ async function upload() {
     fileName: `f${__VU}-${__ITER}.bin`,
     contentType: 'application/octet-stream',
     contentSize: randInt(1, 5 * 1024 * 1024),
-  }), { ...JSON_HEADERS, tags: { name: 'upload' } });
-  serverErrors.add(created.status >= 500);
+  }), { ...JSON_HEADERS, tags: { name: 'upload', phase: phase() } });
+  serverErrors.add(created.status >= 500, { phase: phase() });
   const link = created.status === 201 ? created.json('data') : null;
-  check(created, { 'upload link 201': (r) => r.status === 201 });
+  check(created, { 'upload link 201': (r) => r.status === 201 }, { phase: phase() });
   if (!link) return;
 
   sleep(UPLOAD_WAIT_MIN_S + Math.random() * (UPLOAD_WAIT_MAX_S - UPLOAD_WAIT_MIN_S));
@@ -131,9 +144,9 @@ async function upload() {
   const confirmed = http.patch(`${BASE_URL}/api/v1/file`, JSON.stringify({
     fileKey: link.fileKey,
     fileCode: link.fileCode,
-  }), { ...JSON_HEADERS, tags: { name: 'confirm' } });
-  serverErrors.add(confirmed.status >= 500);
-  const ok = check(confirmed, { 'confirm 200': (r) => r.status === 200 });
+  }), { ...JSON_HEADERS, tags: { name: 'confirm', phase: phase() } });
+  serverErrors.add(confirmed.status >= 500, { phase: phase() });
+  const ok = check(confirmed, { 'confirm 200': (r) => r.status === 200 }, { phase: phase() });
   if (!ok) return;
 
   await client.sendCommand('EVAL', ADD, 0,
@@ -147,16 +160,16 @@ function download(claim) {
     : expired ? http.expectedStatuses(404) : http.expectedStatuses(200);
 
   const res = http.get(`${BASE_URL}/api/v1/file/${code}`, {
-    tags: { name: expired ? 'download_expired' : 'download' },
+    tags: { name: expired ? 'download_expired' : 'download', phase: phase() },
     responseCallback: expectedStatuses,
   });
-  serverErrors.add(res.status >= 500);
+  serverErrors.add(res.status >= 500, { phase: phase() });
   if (expired) expiredHits.add(1);
 
   check(res, {
     'download as expected': (r) => nearExpiry ? (r.status === 200 || r.status === 404)
       : expired ? r.status === 404 : r.status === 200,
-  });
+  }, { phase: phase() });
 }
 
 export default async function () {
