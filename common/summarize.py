@@ -46,7 +46,7 @@ def open_csv(path):
 
 def summarize_attempt(d):
     meta = json.load(open(os.path.join(d, "pass.json")))
-    warm, bench = meta.get("warmup_s", 300), meta.get("bench_s", 300)
+    warm, bench = meta.get("warmup_s", 120), meta.get("bench_s", 300)
 
     dur = defaultdict(list)          # (phase, name) -> ms
     failed = defaultdict(int)        # (phase, name) -> count
@@ -97,7 +97,7 @@ def summarize_attempt(d):
         s, c = rates[(ph, m)]
         return round(s / c, 4) if c else ""
 
-    span = {"warmup": warm, "bench": bench, "cooldown": meta.get("cooldown_s", 60)}
+    span = {"warmup": warm, "bench": bench, "cooldown": meta.get("cooldown_s", 120)}
     rows = []
     for ph in PHASES:
         for n in sorted({k[1] for k in dur if k[0] == ph}):

@@ -46,9 +46,9 @@ const EXPIRIES = [
 // VUS users. Ramp up over WARMUP_S, hold for BENCH_S, ramp down over COOLDOWN_S.
 // Only requests made during the bench phase count toward the thresholds.
 const VUS = Number(__ENV.VUS || 80);
-const WARMUP_S = Number(__ENV.WARMUP_S || 300);
+const WARMUP_S = Number(__ENV.WARMUP_S || 120);
 const BENCH_S = Number(__ENV.BENCH_S || 300);
-const COOLDOWN_S = Number(__ENV.COOLDOWN_S || 60);
+const COOLDOWN_S = Number(__ENV.COOLDOWN_S || 120);
 
 function phase() {
   const t = exec.instance.currentTestRunDuration / 1000;

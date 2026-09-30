@@ -63,7 +63,7 @@ Every VU loops forever, with a 5 second pause before it starts the loop again (`
 
 A file leaves the list as soon as it runs out of downloads. An expired file stays for 2 more minutes so people keep hitting expired files. Those 404s are expected and don't count as errors.
 
-A pass is k6 running N users: 5 minutes ramping up (warm up), 5 minutes holding N (the bench), 1 minute ramping down. Only the bench part counts for the thresholds. `WARMUP_S`, `BENCH_S` and `COOLDOWN_S` change the times.
+A pass is k6 running N users: 2 minutes ramping up (warm up), 5 minutes holding N (the bench), 2 minutes ramping down (warm down). Only the bench part counts for the thresholds. `WARMUP_S`, `BENCH_S` and `COOLDOWN_S` change the times.
 
 A pass has to keep the thresholds: p95 under 200ms, p99 under 600ms, server errors under 1% and checks over 99%.
 
