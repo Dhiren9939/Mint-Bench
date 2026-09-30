@@ -4,13 +4,14 @@
 #
 #   BACKEND=admin@<backend ip> DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=... bench-sql/reseed.sh
 #
-# ssh from the load generator to the backend needs a key. Connect to the load generator with
-# ssh -A so your local key is forwarded, no key gets stored on the box.
+# ssh from the load generator to the backend needs a key. Either connect to the load generator
+# with ssh -A, or copy a key onto it and set SSH_KEY=<path>.
 set -euo pipefail
 
 : "${BACKEND:?}" "${DB_HOST:?}" "${DB_USERNAME:?}" "${DB_PASSWORD:?}"
 COUNT="${COUNT:-10000}"
 SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30)
+[ -n "${SSH_KEY:-}" ] && SSH_OPTS+=(-i "$SSH_KEY")
 HERE="$(cd "$(dirname "$0")" && pwd)"
 CSV="$(mktemp)"
 

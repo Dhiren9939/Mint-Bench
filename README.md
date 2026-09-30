@@ -75,7 +75,7 @@ The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I
    ```bash
    sudo env MINT_DIR=/opt/src/Mint BENCH_DIR=/opt/src/Mint-Bench DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=... bash /opt/src/Mint-Bench/bench-sql/setup-ec2.sh
    ```
-2. Find the most users the arm holds. Connect to the load generator with `ssh -A` so it can reach the backend with your key (nothing gets stored on the box), then:
+2. Find the most users the arm holds. The load generator has to ssh to the backend. Either connect to it with `ssh -A`, or copy your key onto it (`scp -i mintkey.pem mintkey.pem admin@<loadgen ip>:~/mintkey.pem`, then `chmod 600 ~/mintkey.pem` there) and set `SSH_KEY=~/mintkey.pem`. The box goes away with the teardown, but it's your key, so don't leave it running. Then:
    ```bash
    git clone https://github.com/Dhiren9939/Mint-Bench.git && cd Mint-Bench
    export BACKEND=admin@<backend ip> DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=...
