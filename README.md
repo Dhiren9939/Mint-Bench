@@ -56,7 +56,7 @@ It isn't in the backend's VPC so it hits the backend over the public IP, through
 
 ## The users
 
-Every VU loops forever. If the file list has files it uploads 2.6% of the time and downloads the rest. If the list is empty it uploads.
+Every VU loops forever, with a 5 second pause before it starts the loop again (`THINK_MS`). If the file list has files it uploads 2.6% of the time and downloads the rest. If the list is empty it uploads.
 
 - Upload: POST the upload link, sleep 1 to 3 seconds for the S3 upload, PATCH to confirm, add the file to the list with 15 to 60 downloads.
 - Download: pick a random file from the list and GET it.

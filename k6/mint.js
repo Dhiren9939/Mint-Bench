@@ -30,7 +30,8 @@ const REDIS_URL = __ENV.REDIS_URL || 'redis://127.0.0.1:6379';
 const UPLOAD_CHANCE = Number(__ENV.UPLOAD_CHANCE || 0.026);
 const UPLOAD_WAIT_MIN_S = Number(__ENV.UPLOAD_WAIT_MIN_S || 1);
 const UPLOAD_WAIT_MAX_S = Number(__ENV.UPLOAD_WAIT_MAX_S || 3);
-const THINK_MS = Number(__ENV.THINK_MS || 0);
+// pause before a user starts the loop again
+const THINK_MS = Number(__ENV.THINK_MS || 5000);
 const EXPIRED_GRACE_MS = 2 * 60 * 1000;
 // Clock skew between this box and the backend: a hit this close to expiry may go either way.
 const EXPIRY_SLACK_MS = 2000;
