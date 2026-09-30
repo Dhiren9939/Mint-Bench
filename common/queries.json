@@ -1,0 +1,39 @@
+[
+  {
+    "source": "backend",
+    "namespace": "CWAgent",
+    "dimensions": { "InstanceId": "{backend}" },
+    "metrics": [
+      "cpu_usage_user", "cpu_usage_system", "cpu_usage_idle", "cpu_usage_iowait", "cpu_usage_steal",
+      "mem_used_percent", "mem_used", "mem_available", "swap_used_percent",
+      "disk_used_percent", "disk_used", "disk_free",
+      "diskio_reads", "diskio_writes", "diskio_read_bytes", "diskio_write_bytes", "diskio_iops_in_progress",
+      "net_bytes_sent", "net_bytes_recv",
+      "tcp_established", "tcp_time_wait", "netstat_tcp_established", "netstat_tcp_time_wait",
+      "procstat_cpu_usage", "procstat_memory_rss"
+    ]
+  },
+  {
+    "source": "backend",
+    "namespace": "AWS/EC2",
+    "dimensions": { "InstanceId": "{backend}" },
+    "metrics": [
+      "CPUUtilization", "CPUCreditBalance", "CPUCreditUsage", "CPUSurplusCreditBalance", "CPUSurplusCreditsCharged",
+      "NetworkIn", "NetworkOut", "EBSReadOps", "EBSWriteOps", "EBSReadBytes", "EBSWriteBytes"
+    ]
+  },
+  {
+    "source": "loadgen",
+    "namespace": "MintLoadgen",
+    "dimensions": { "InstanceId": "{loadgen}" },
+    "metrics": [
+      "cpu_usage_user", "cpu_usage_system", "cpu_usage_idle", "mem_used_percent", "net_bytes_sent", "net_bytes_recv"
+    ]
+  },
+  {
+    "source": "loadgen",
+    "namespace": "AWS/EC2",
+    "dimensions": { "InstanceId": "{loadgen}" },
+    "metrics": ["CPUUtilization", "NetworkIn", "NetworkOut"]
+  }
+]

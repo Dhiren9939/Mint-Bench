@@ -1,0 +1,14 @@
+[
+  {
+    "source": "db",
+    "namespace": "AWS/RDS",
+    "dimensions": { "DBInstanceIdentifier": "{db}" },
+    "metrics": [
+      "CPUUtilization", "CPUCreditBalance", "CPUCreditUsage",
+      "FreeableMemory", "SwapUsage",
+      "FreeStorageSpace", "DiskQueueDepth", "BurstBalance",
+      "ReadIOPS", "WriteIOPS", "ReadThroughput", "WriteThroughput", "ReadLatency", "WriteLatency",
+      "DatabaseConnections"
+    ]
+  }
+]

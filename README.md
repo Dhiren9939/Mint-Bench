@@ -15,10 +15,29 @@ Only the API and the database run in each arm, no S3 and no CloudFront. Every ar
 
 ```text
 Mint-Bench/
+  common/       CloudWatch agent config, the metric lists and the export script, same for every arm
   loadgen/      terraform for the box k6 runs on
   k6/           the k6 script and the file list loader
-  bench-sql/    seed script, data/ and results/
+  bench-sql/    setup script, seed script, data/ and results/
 ```
+
+## Data
+
+Every arm produces the same files in `<arm>/results/<run-id>/` so one analysis works on all of them.
+
+- `k6.csv` and `summary.json` from k6
+- `metrics.csv` from `common/export-run.py`, with the columns `timestamp,source,namespace,metric,dims,stat,value`. `source` is `backend`, `loadgen` or `db`.
+- `run.json`, written by the export script
+
+The backend gets the same CloudWatch agent config on every EC2 arm (`common/cwagent.json`): CPU including steal, memory, swap, disk, disk IO, network, and CPU and memory per process for java, redis-server, dockerd, containerd and the agent itself. `common/queries.json` lists what gets exported for the backend and the load generator, and each arm has a `queries.json` for its database (RDS for `bench-sql`).
+
+```bash
+python common/export-run.py bench-sql 2026-10-01-a \
+  --start 2026-10-01T10:00:00Z --end 2026-10-01T11:00:00Z \
+  --backend i-... --loadgen i-... --db <rds identifier>
+```
+
+Needs the aws CLI logged in. Export soon after a run, CloudWatch only keeps 1 minute data for 15 days.
 
 ## Load generator
 
@@ -52,7 +71,13 @@ The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I
 
 ## Running an arm
 
-1. Raise all the `mint.cap.*` limits on the backend. Every VU shares one IP.
+1. Set up the backend EC2. Copy the backend source and this repo onto it, then run the setup script. It adds swap, installs docker and the CloudWatch agent, applies the schema, builds the image on the box and starts it with the `mint.cap.*` limits raised (every VU shares one IP).
+   ```bash
+   tar -C <Mint checkout> -cf - backend | ssh -i mintkey.pem admin@<ec2 ip> 'mkdir -p Mint && tar -C Mint -xf -'
+   scp -i mintkey.pem -r <this repo> admin@<ec2 ip>:Mint-Bench
+   ssh -i mintkey.pem admin@<ec2 ip>
+   DB_HOST=<rds endpoint> DB_USERNAME=... DB_PASSWORD=... Mint-Bench/bench-sql/setup-ec2.sh
+   ```
 2. On the backend EC2 run the seed, RDS isn't reachable from anywhere else.
    ```bash
    PGHOST=<rds endpoint> PGUSER=... PGPASSWORD=... PGDATABASE=mintdb ./seed-rds.sh 10000
@@ -66,7 +91,7 @@ The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I
      -e BASE_URL=http://mint-bench-sql.dhiren.xyz \
      --out csv=results.csv --summary-export=summary.json k6/mint.js
    ```
-6. Copy the results into `bench-sql/results/` before tearing anything down.
+6. Copy `k6.csv` and `summary.json` into `bench-sql/results/<run-id>/` and run the export script before tearing anything down.
 
 ## Notes
 
@@ -77,7 +102,5 @@ The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I
 
 ## Todo
 
-- Port the metrics to the arm's branch
-- EC2 setup script (docker, CloudWatch agent, schema, build the image)
-- Script to export the CloudWatch data
+- `setup-ec2.sh` and the export script haven't run against real AWS yet. The dimensions the agent puts on its metrics might need a tweak in `queries.json`.
 - The expired file path in the k6 script isn't tested and `user_data.sh` hasn't run on a real box yet
