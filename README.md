@@ -32,7 +32,8 @@ Each arm gets a folder here (`bench-sql/`, ...) holding its `data/` (seed files)
 - Default VPC, Debian 12, `c6i.xlarge` (4 vCPU, 8 GiB, no CPU credits). Change with `instance_type`.
 - `user_data.sh` installs k6, a local Redis (loopback only), and the CloudWatch agent (`MintLoadgen` namespace:
   CPU, memory, network). It also raises file and port limits.
-- SSH in with `mintkey.pem` as user `admin`. Port 22 is limited to `ssh_cidr`, which has no default: pass your IP.
+- SSH in with `mintkey.pem` as user `admin`. Port 22 is limited to `ssh_cidr`, which defaults to `0.0.0.0/0`;
+  pass `-var 'ssh_cidr=<your ip>/32'` to restrict it.
 - The backend is reached over the public internet, since the load generator is not in the backend's VPC.
   The backend's port 80 is open to the world, and Route53 points `mint-bench-sql.<domain>` at the EC2 public IP.
   There is no Elastic IP, so the IP (and record) changes if the instance is stopped and started.
@@ -40,7 +41,7 @@ Each arm gets a folder here (`bench-sql/`, ...) holding its `data/` (seed files)
 ```
 cd loadgen
 terraform init
-terraform plan -var 'ssh_cidr=<your ip>/32' -out plan
+terraform plan -out plan
 terraform apply plan
 ```
 
