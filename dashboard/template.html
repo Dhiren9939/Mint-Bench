@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mint Bench Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1b1f24; --muted: #667085; --grid: #e4e7ec; --line: #d0d5dd;
+    --a: #2563eb; --b: #d97706; --c: #7c3aed; --d: #0891b2; --e: #64748b;
+    --good: #15803d; --good-bg: #dcfce7; --bad: #b91c1c; --bad-bg: #fee2e2; --shade1: rgba(37,99,235,.06); --shade2: rgba(21,128,61,.09); --shade3: rgba(217,119,6,.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --card: #171b21; --ink: #e6e9ee; --muted: #98a2b3; --grid: #2a303a; --line: #333b47;
+      --a: #60a5fa; --b: #fbbf24; --c: #a78bfa; --d: #22d3ee; --e: #94a3b8;
+      --good: #4ade80; --good-bg: #14301f; --bad: #f87171; --bad-bg: #3b1a1a; --shade1: rgba(96,165,250,.08); --shade2: rgba(74,222,128,.09); --shade3: rgba(251,191,36,.08);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 12px; }
+  h3 { font-size: 13px; margin: 0 0 8px; font-weight: 600; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .kpi .v { font-size: 26px; font-weight: 650; }
+  .kpi .l { color: var(--muted); font-size: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px; }
+  .chart { position: relative; height: 260px; }
+  .note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--grid); }
+  tbody tr.sel { outline: 2px solid var(--a); outline-offset: -2px; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+  .pass { background: var(--good-bg); color: var(--good); }
+  .fail { background: var(--bad-bg); color: var(--bad); }
+  .scroll { overflow-x: auto; }
+  select { background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; }
+  .bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .bar label { color: var(--muted); }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title"></h1>
+  <p class="sub" id="sub"></p>
+
+  <div class="cards" id="kpis"></div>
+
+  <h2>All attempts</h2>
+  <div class="grid">
+    <div class="card"><h3>Latency at the bench (log scale)</h3><div class="chart"><canvas id="c-lat"></canvas></div><p class="note">p95 and p99 over the 5 minute bench. Dashed lines are the limits, 200 ms and 600 ms.</p></div>
+    <div class="card"><h3>Requests per second at the bench</h3><div class="chart"><canvas id="c-rps"></canvas></div><p class="note">The dashed line is what the users would send if the backend kept up, about 0.2 requests per second each.</p></div>
+  </div>
+  <div class="card scroll" style="margin-top:12px">
+    <table id="tbl"></table>
+    <p class="note">Click a row to look at that attempt below. CPU and swap are the average of the 1 minute CloudWatch points inside the bench.</p>
+  </div>
+
+  <h2>One attempt</h2>
+  <div class="bar"><label for="sel">Attempt</label><select id="sel"></select><span id="attempt-sub" class="sub" style="margin:0"></span></div>
+  <div class="grid" id="attempt-charts">
+    <div class="card"><h3>Latency over time (log scale)</h3><div class="chart"><canvas id="a-lat"></canvas></div></div>
+    <div class="card"><h3>Requests per second and users</h3><div class="chart"><canvas id="a-rps"></canvas></div></div>
+    <div class="card"><h3>Backend CPU, whole machine (%)</h3><div class="chart"><canvas id="a-cpu"></canvas></div><p class="note">2 vCPUs. Steal is time the host took away.</p></div>
+    <div class="card"><h3>CPU per process (% of one core)</h3><div class="chart"><canvas id="a-proc"></canvas></div><p class="note">200 means both cores.</p></div>
+    <div class="card"><h3>Backend memory</h3><div class="chart"><canvas id="a-mem"></canvas></div></div>
+    <div class="card"><h3>Memory per process (MB)</h3><div class="chart"><canvas id="a-rss"></canvas></div></div>
+    <div class="card"><h3>Load generator (%)</h3><div class="chart"><canvas id="a-lg"></canvas></div><p class="note">If this is near 100 the latency numbers are the load generator's fault.</p></div>
+    <div class="card"><h3>RDS CPU (%) and connections</h3><div class="chart"><canvas id="a-db"></canvas></div></div>
+    <div class="card"><h3>RDS IOPS</h3><div class="chart"><canvas id="a-iops"></canvas></div></div>
+    <div class="card"><h3>Open TCP connections on the backend</h3><div class="chart"><canvas id="a-tcp"></canvas></div></div>
+  </div>
+
+  <h2>Compare two attempts</h2>
+  <div class="bar"><label for="ca">A</label><select id="ca"></select><label for="cb">B</label><select id="cb"></select></div>
+  <div class="grid">
+    <div class="card scroll"><table id="cmp"></table></div>
+    <div class="card"><h3>p95 over time (log scale)</h3><div class="chart"><canvas id="cmp-chart"></canvas></div></div>
+  </div>
+</main>
+
+<script>
+const DATA = __DATA__;
+
+const $ = (s) => document.querySelector(s);
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = { ink: css('--ink'), muted: css('--muted'), grid: css('--grid'), a: css('--a'), b: css('--b'), c: css('--c'),
+  d: css('--d'), e: css('--e'), good: css('--good'), bad: css('--bad'), s1: css('--shade1'), s2: css('--shade2'), s3: css('--shade3') };
+Chart.defaults.color = C.muted;
+Chart.defaults.borderColor = C.grid;
+Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+Chart.defaults.maintainAspectRatio = false;
+Chart.defaults.animation = false;
+
+const A = DATA.attempts;
+const byUsers = [...A].sort((x, y) => x.vus - y.vus);
+const bench = (a, name = 'ALL') => a.stats.find((r) => r.phase === 'bench' && r.name === name) || {};
+const f = (v, d = 1) => (v === '' || v == null || Number.isNaN(Number(v))) ? '-' : Number(v).toFixed(d);
+const ms = (v) => (v === '' || v == null) ? '-' : Number(v) >= 1000 ? (Number(v) / 1000).toFixed(2) + ' s' : Number(v).toFixed(Number(v) < 10 ? 1 : 0) + ' ms';
+
+// points of a metric series inside the bench window, averaged
+function benchAvg(a, key) {
+  const s = a.metrics[key];
+  if (!s) return null;
+  const from = a.warmup_s, to = a.warmup_s + a.bench_s;
+  const v = s.filter(([t]) => t >= from - 30 && t < to).map((p) => p[1]).filter((x) => x != null);
+  return v.length ? v.reduce((x, y) => x + y, 0) / v.length : null;
+}
+const K = {
+  user: 'backend|cpu_usage_user|cpu=cpu-total|average', sys: 'backend|cpu_usage_system|cpu=cpu-total|average',
+  steal: 'backend|cpu_usage_steal|cpu=cpu-total|average', mem: 'backend|mem_used_percent||average',
+  swap: 'backend|swap_used_percent||average', tcp: 'backend|netstat_tcp_established||average',
+  proc: (p) => `backend|procstat_cpu_usage|exe=${p};process_name=${p}|average`,
+  rss: (p) => `backend|procstat_memory_rss|exe=${p};process_name=${p}|average`,
+  lgu: 'loadgen|cpu_usage_user|cpu=cpu-total|average', lgs: 'loadgen|cpu_usage_system|cpu=cpu-total|average',
+  lgm: 'loadgen|mem_used_percent||average',
+  dbcpu: 'db|CPUUtilization||average', dbconn: 'db|DatabaseConnections||average',
+  dbw: 'db|WriteIOPS||average', dbr: 'db|ReadIOPS||average',
+};
+
+// header
+$('#title').textContent = `${DATA.arm}, run ${DATA.run}`;
+const S = DATA.search;
+$('#sub').textContent = `${A.length} attempts. Passed up to ${S.passed_up_to} users, failed from ${S.failed_from}. Each attempt: ${A[0].warmup_s / 60} min warm up, ${A[0].bench_s / 60} min bench, ${A[0].cooldown_s / 60} min warm down. Pass means p95 under 200 ms, p99 under 600 ms and under 1% errors.`;
+
+const best = byUsers.filter((a) => a.result === 'pass').pop();
+const firstFail = byUsers.find((a) => a.result === 'fail' && (!best || a.vus > best.vus));
+const kpi = (v, l) => `<div class="card kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+$('#kpis').innerHTML = [
+  kpi(best ? best.vus : '-', 'most users that passed'),
+  kpi(firstFail ? firstFail.vus : '-', 'fewest users that failed'),
+  kpi(best ? f(bench(best).rps, 0) : '-', 'requests per second at the best pass'),
+  kpi(best ? ms(bench(best).p95_ms) : '-', 'p95 at the best pass'),
+  kpi(best ? ms(bench(best).p99_ms) : '-', 'p99 at the best pass'),
+  kpi(firstFail ? ms(bench(firstFail).p95_ms) : '-', 'p95 at the first fail'),
+].join('');
+
+// all attempts
+const labels = byUsers.map((a) => String(a.vus));
+const ptColor = byUsers.map((a) => a.result === 'pass' ? C.good : C.bad);
+new Chart($('#c-lat'), {
+  type: 'line',
+  data: { labels, datasets: [
+    { label: 'p95', data: byUsers.map((a) => bench(a).p95_ms), borderColor: C.a, backgroundColor: C.a, pointBackgroundColor: ptColor, pointRadius: 5, tension: 0 },
+    { label: 'p99', data: byUsers.map((a) => bench(a).p99_ms), borderColor: C.c, backgroundColor: C.c, pointBackgroundColor: ptColor, pointRadius: 5, tension: 0 },
+    { label: 'p95 limit', data: byUsers.map(() => 200), borderColor: C.a, borderDash: [5, 4], pointRadius: 0, borderWidth: 1 },
+    { label: 'p99 limit', data: byUsers.map(() => 600), borderColor: C.c, borderDash: [5, 4], pointRadius: 0, borderWidth: 1 },
+  ] },
+  options: { scales: { y: { type: 'logarithmic', title: { display: true, text: 'ms' } }, x: { title: { display: true, text: 'users' } } },
+    plugins: { legend: { position: 'bottom' } } },
+});
+new Chart($('#c-rps'), {
+  type: 'line',
+  data: { labels, datasets: [
+    { label: 'requests per second', data: byUsers.map((a) => bench(a).rps), borderColor: C.a, backgroundColor: C.a, pointBackgroundColor: ptColor, pointRadius: 5, tension: 0 },
+    { label: 'expected at 0.2 per user', data: byUsers.map((a) => a.vus * 0.2), borderColor: C.e, borderDash: [5, 4], pointRadius: 0, borderWidth: 1 },
+  ] },
+  options: { scales: { y: { beginAtZero: true, title: { display: true, text: 'requests per second' } }, x: { title: { display: true, text: 'users' } } },
+    plugins: { legend: { position: 'bottom' } } },
+});
+
+// table
+const cols = [
+  ['#', (a) => a.order], ['users', (a) => a.vus],
+  ['result', (a) => `<span class="badge ${a.result}">${a.result}</span>`],
+  ['req/s', (a) => f(bench(a).rps, 0)], ['p50', (a) => ms(bench(a).p50_ms)], ['p95', (a) => ms(bench(a).p95_ms)],
+  ['p99', (a) => ms(bench(a).p99_ms)], ['max', (a) => ms(bench(a).max_ms)],
+  ['failed', (a) => f(Number(bench(a).failed_rate) * 100, 2) + '%'], ['5xx', (a) => bench(a).status_5xx],
+  ['java CPU', (a) => f(benchAvg(a, K.proc('java')), 0) + '%'], ['redis CPU', (a) => f(benchAvg(a, K.proc('redis-server')), 0) + '%'],
+  ['machine CPU', (a) => { const u = benchAvg(a, K.user), s = benchAvg(a, K.sys); return u == null ? '-' : f(u + s, 0) + '%'; }],
+  ['swap', (a) => f(benchAvg(a, K.swap), 0) + '%'], ['loadgen CPU', (a) => { const u = benchAvg(a, K.lgu), s = benchAvg(a, K.lgs); return u == null ? '-' : f(u + s, 0) + '%'; }],
+  ['RDS CPU', (a) => f(benchAvg(a, K.dbcpu), 0) + '%'],
+];
+$('#tbl').innerHTML = `<thead><tr>${cols.map((c) => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>` +
+  byUsers.map((a) => `<tr data-v="${a.vus}">${cols.map((c) => `<td>${c[1](a)}</td>`).join('')}</tr>`).join('') + '</tbody>';
+document.querySelectorAll('#tbl tbody tr').forEach((tr) => tr.addEventListener('click', () => {
+  $('#sel').value = tr.dataset.v; showAttempt(); document.querySelector('#sel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}));
+
+// one attempt
+const opts = byUsers.map((a) => `<option value="${a.vus}">${a.vus} users, ${a.result}</option>`).join('');
+$('#sel').innerHTML = opts;
+$('#ca').innerHTML = opts;
+$('#cb').innerHTML = opts;
+$('#sel').value = String((firstFail || byUsers[byUsers.length - 1]).vus);
+$('#ca').value = String((best || byUsers[0]).vus);
+$('#cb').value = String((firstFail || byUsers[byUsers.length - 1]).vus);
+const attemptOf = (v) => A.find((a) => String(a.vus) === String(v));
+
+// shades the warm up, bench and warm down parts of a time chart
+const phasePlugin = {
+  id: 'phases',
+  beforeDatasetsDraw(chart, _a, o) {
+    if (!o || !o.warm) return;
+    const { ctx, chartArea: ca, scales: { x } } = chart;
+    const edges = [[x.min, o.warm, C.s1, 'warm up'], [o.warm, o.warm + o.bench, C.s2, 'bench'], [o.warm + o.bench, x.max, C.s3, 'warm down']];
+    ctx.save();
+    ctx.font = '11px system-ui'; ctx.textBaseline = 'top';
+    for (const [from, to, col, name] of edges) {
+      const l = Math.max(ca.left, x.getPixelForValue(from)), r = Math.min(ca.right, x.getPixelForValue(to));
+      if (r <= l) continue;
+      ctx.fillStyle = col; ctx.fillRect(l, ca.top, r - l, ca.bottom - ca.top);
+      ctx.fillStyle = C.muted; ctx.fillText(name, l + 6, ca.top + 4);
+    }
+    ctx.restore();
+  },
+};
+
+const charts = {};
+function draw(id, a, datasets, extra = {}) {
+  if (charts[id]) charts[id].destroy();
+  const has = datasets.some((d) => d.data.length);
+  const el = $('#' + id);
+  el.parentElement.style.opacity = has ? 1 : .35;
+  const yScales = extra.scales || {};
+  charts[id] = new Chart(el, {
+    type: 'line',
+    data: { datasets: datasets.filter((d) => d.data.length) },
+    options: {
+      parsing: false, spanGaps: true,
+      scales: { x: { type: 'linear', min: -60, ticks: { stepSize: 60, callback: (v) => (v / 60) + 'm' }, title: { display: true, text: 'minutes since the start' } }, ...yScales },
+      plugins: { legend: { position: 'bottom' }, phases: { warm: a.warmup_s, bench: a.bench_s } },
+      elements: { point: { radius: 0 }, line: { borderWidth: 2, tension: 0 } },
+    },
+    plugins: [phasePlugin],
+  });
+}
+const tl = (a, name, k) => { const t = a.timeline[name]; return t ? t.t.map((x, i) => ({ x: x + 5, y: t[k][i] })).filter((p) => p.y != null && p.y > 0) : []; };
+const tlAny = (a, name, k) => { const t = a.timeline[name]; return t ? t.t.map((x, i) => ({ x: x + 5, y: t[k][i] })).filter((p) => p.y != null) : []; };
+const ms1 = (a, key, scale = 1) => (a.metrics[key] || []).filter((p) => p[1] != null).map(([t, v]) => ({ x: t, y: v * scale }));
+const sum = (p, q) => p.map((pt) => { const o = q.find((z) => z.x === pt.x); return { x: pt.x, y: pt.y + (o ? o.y : 0) }; });
+const ds = (label, data, color, extra = {}) => ({ label, data, borderColor: color, backgroundColor: color, ...extra });
+const pct = { y: { beginAtZero: true, suggestedMax: 100, title: { display: true, text: '%' } } };
+
+function showAttempt() {
+  const a = attemptOf($('#sel').value);
+  document.querySelectorAll('#tbl tbody tr').forEach((tr) => tr.classList.toggle('sel', tr.dataset.v === String(a.vus)));
+  $('#attempt-sub').textContent = `${a.vus} users, ${a.result}. CloudWatch points are 1 minute apart.`;
+  draw('a-lat', a, [ds('p50', tl(a, 'ALL', 'p50'), C.d), ds('p95', tl(a, 'ALL', 'p95'), C.a), ds('p99', tl(a, 'ALL', 'p99'), C.c),
+    ds('p95 limit 200 ms', [{ x: -60, y: 200 }, { x: a.warmup_s + a.bench_s + a.cooldown_s, y: 200 }], C.a, { borderDash: [5, 4], borderWidth: 1 })],
+    { scales: { y: { type: 'logarithmic', title: { display: true, text: 'ms' } } } });
+  draw('a-rps', a, [ds('requests per second', tlAny(a, 'ALL', 'rps'), C.a, { yAxisID: 'y' }), ds('users', tlAny(a, 'ALL', 'vus'), C.e, { yAxisID: 'y1', borderDash: [4, 3], borderWidth: 1 })],
+    { scales: { y: { beginAtZero: true, title: { display: true, text: 'requests per second' } }, y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'users' } } } });
+  const busy = sum(ms1(a, K.user), ms1(a, K.sys));
+  draw('a-cpu', a, [ds('user + system', busy, C.a), ds('user', ms1(a, K.user), C.d, { borderWidth: 1 }), ds('steal', ms1(a, K.steal), C.b)], { scales: pct });
+  draw('a-proc', a, ['java', 'redis-server', 'dockerd', 'containerd', 'amazon-cloudwatch-agent'].map((p, i) => ds(p, ms1(a, K.proc(p)), [C.a, C.b, C.c, C.d, C.e][i])),
+    { scales: { y: { beginAtZero: true, title: { display: true, text: '% of one core' } } } });
+  draw('a-mem', a, [ds('memory used', ms1(a, K.mem), C.a), ds('swap used', ms1(a, K.swap), C.b)], { scales: pct });
+  draw('a-rss', a, ['java', 'redis-server', 'dockerd'].map((p, i) => ds(p, ms1(a, K.rss(p), 1 / 1048576), [C.a, C.b, C.c][i])),
+    { scales: { y: { beginAtZero: true, title: { display: true, text: 'MB' } } } });
+  draw('a-lg', a, [ds('CPU user + system', sum(ms1(a, K.lgu), ms1(a, K.lgs)), C.a), ds('memory used', ms1(a, K.lgm), C.b)], { scales: pct });
+  draw('a-db', a, [ds('CPU %', ms1(a, K.dbcpu), C.a, { yAxisID: 'y' }), ds('connections', ms1(a, K.dbconn), C.b, { yAxisID: 'y1' })],
+    { scales: { y: { beginAtZero: true, suggestedMax: 100, title: { display: true, text: '%' } }, y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'connections' } } } });
+  draw('a-iops', a, [ds('write', ms1(a, K.dbw), C.a), ds('read', ms1(a, K.dbr), C.b)], { scales: { y: { beginAtZero: true, title: { display: true, text: 'per second' } } } });
+  draw('a-tcp', a, [ds('established', ms1(a, K.tcp), C.a)], { scales: { y: { beginAtZero: true } } });
+}
+$('#sel').addEventListener('change', showAttempt);
+
+// compare
+const cmpRows = [
+  ['result', (a) => `<span class="badge ${a.result}">${a.result}</span>`],
+  ['requests per second', (a) => f(bench(a).rps, 0)],
+  ['p50', (a) => ms(bench(a).p50_ms)], ['p95', (a) => ms(bench(a).p95_ms)], ['p99', (a) => ms(bench(a).p99_ms)], ['max', (a) => ms(bench(a).max_ms)],
+  ['upload p95', (a) => ms(bench(a, 'upload').p95_ms)], ['confirm p95', (a) => ms(bench(a, 'confirm').p95_ms)], ['download p95', (a) => ms(bench(a, 'download').p95_ms)],
+  ['failed', (a) => f(Number(bench(a).failed_rate) * 100, 2) + '%'],
+  ['java CPU', (a) => f(benchAvg(a, K.proc('java')), 0) + '%'], ['redis CPU', (a) => f(benchAvg(a, K.proc('redis-server')), 0) + '%'],
+  ['machine CPU', (a) => { const u = benchAvg(a, K.user), s = benchAvg(a, K.sys); return u == null ? '-' : f(u + s, 0) + '%'; }],
+  ['swap', (a) => f(benchAvg(a, K.swap), 0) + '%'], ['memory used', (a) => f(benchAvg(a, K.mem), 0) + '%'],
+  ['java memory', (a) => { const v = benchAvg(a, K.rss('java')); return v == null ? '-' : f(v / 1048576, 0) + ' MB'; }],
+  ['RDS CPU', (a) => f(benchAvg(a, K.dbcpu), 0) + '%'], ['RDS connections', (a) => f(benchAvg(a, K.dbconn), 0)],
+];
+function showCompare() {
+  const x = attemptOf($('#ca').value), y = attemptOf($('#cb').value);
+  $('#cmp').innerHTML = `<thead><tr><th></th><th>${x.vus} users</th><th>${y.vus} users</th></tr></thead><tbody>` +
+    cmpRows.map((r) => `<tr style="cursor:default"><td>${r[0]}</td><td>${r[1](x)}</td><td>${r[1](y)}</td></tr>`).join('') + '</tbody>';
+  const a = x;
+  draw('cmp-chart', a, [ds(`${x.vus} users`, tl(x, 'ALL', 'p95'), C.a), ds(`${y.vus} users`, tl(y, 'ALL', 'p95'), C.b),
+    ds('200 ms limit', [{ x: -60, y: 200 }, { x: x.warmup_s + x.bench_s + x.cooldown_s, y: 200 }], C.e, { borderDash: [5, 4], borderWidth: 1 })],
+    { scales: { y: { type: 'logarithmic', title: { display: true, text: 'p95, ms' } } } });
+}
+$('#ca').addEventListener('change', showCompare);
+$('#cb').addEventListener('change', showCompare);
+
+showAttempt();
+showCompare();
+</script>
+</body>
+</html>

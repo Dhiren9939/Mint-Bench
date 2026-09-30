@@ -86,6 +86,15 @@ Every attempt leaves `<arm>/results/<run-id>/vus-<N>/`, the same files for every
 
 `python common/summarize.py <arm> <run-id>` makes tables from the raw data, whenever you want them: `stats.csv` (per phase and request name: count, rps, p50, p95, p99, avg, max, failed, 5xx) and `timeline.csv` (the same per 10 seconds, with the users) in every attempt, and `attempts.csv` in the run folder with the bench part of every attempt.
 
+## Dashboard
+
+```bash
+python common/summarize.py bench-sql <run-id>
+python dashboard/build.py bench-sql <run-id>
+```
+
+That writes `bench-sql/results/<run-id>/dashboard.html`, one file with the data in it, open it in a browser (it loads Chart.js from a CDN so it needs internet). It shows every attempt (latency, requests per second, CPU and swap per attempt), then one attempt over time (latency, users, CPU per process, memory, load generator, RDS), then two attempts side by side. It only reads the shared result files so it works for every arm. The dashboard file is gitignored.
+
 The backend gets the same CloudWatch agent config on every EC2 arm (`common/cwagent.json`): CPU including steal, memory, swap, disk, disk IO, network, and CPU and memory per process for java, redis-server, dockerd, containerd and the agent itself. `common/queries.json` lists what gets exported for the backend and the load generator, and each arm has a `queries.json` for its database.
 
 ## Notes
