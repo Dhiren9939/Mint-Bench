@@ -79,8 +79,9 @@ The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I
    ```bash
    git clone https://github.com/Dhiren9939/Mint-Bench.git && cd Mint-Bench
    export BACKEND=admin@<backend ip> DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=...
-   RESEED=bench-sql/reseed.sh k6/find-max.sh bench-sql
+   bench-sql/start.sh
    ```
+   `start.sh` checks the api, the ssh to the backend and Redis, then runs the search in the background so it survives a dropped ssh session. It prints the run id and where the log is. It's done when `bench-sql/results/<run-id>/search.json` shows up. It's the same as `RESEED=bench-sql/reseed.sh k6/find-max.sh bench-sql` if you want to run it in the foreground.
    It starts at 30 users. A pass doubles the users, a fail tries halfway between the last pass and the fail. It stops when they're 5 users apart. `START`, `TOL`, `MAX_VUS`, `REST_S` (rest between passes, 2 min) and `RUN_ID` are env vars.
 
    Before every pass `bench-sql/reseed.sh` cleans RDS, seeds 10000 files split evenly between 15 min, 30 min and 24 hr expiry, and loads the file list. RDS is only reachable from the backend so the seed runs there over ssh. The seeded expiry counts from seed time so every pass starts fresh.
@@ -90,15 +91,12 @@ The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I
    - `seed.csv`, the files that were seeded
    - `pass.json`, pass or fail and the warm up, bench and end times
 
-   `search.json` in the run folder has the answer. Then, on the load generator, turn the raw k6 data into tables:
+   `search.json` in the run folder has the answer. `summarize.py` adds `stats.csv` (per phase and request name: count, rps, p50, p95, p99, avg, max, failed, 5xx) and `timeline.csv` (the same per 10 seconds, with the users) to every attempt, and `attempts.csv` to the run folder, the bench part of every attempt in one file.
+4. When the run is done, on your machine:
    ```bash
-   python3 common/summarize.py bench-sql <run-id>
+   LOADGEN_IP=... BACKEND_ID=i-... LOADGEN_ID=i-... DB_ID=<rds identifier> bench-sql/after.sh <run-id>
    ```
-   That adds `stats.csv` (per phase and request name: count, rps, p50, p95, p99, avg, max, failed, 5xx) and `timeline.csv` (the same per 10 seconds, with the users) to every attempt, and `attempts.csv` to the run folder, the bench part of every attempt in one file.
-4. From your machine, pull the CloudWatch numbers for every attempt (each gets its own `metrics.csv`). Do it before tearing anything down, and a few minutes after the last attempt since CloudWatch is behind:
-   ```bash
-   python common/export-search.py bench-sql <run-id> --backend i-... --loadgen i-... --db <rds identifier>
-   ```
+   It runs `summarize.py` on the load generator, copies the results here and pulls the CloudWatch numbers for every attempt (each gets its own `metrics.csv`). Wait a few minutes after the last attempt since CloudWatch is behind, and do it before tearing anything down.
 
 ## Notes
 
