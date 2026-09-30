@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Run this on the load generator once a run has finished. It makes the tables from the raw k6
-# data and pulls the CloudWatch numbers for every attempt, all into the run folder.
+# Run this on the load generator once a run has finished. It pulls the CloudWatch numbers for
+# every attempt into the run folder. The raw k6 data is left as it is.
 #
 #   bench-sql/after.sh [run-id]        (the latest run if you leave the id out)
 #
@@ -22,9 +22,6 @@ LOADGEN_ID="${LOADGEN_ID:-$(curl -s -H "X-aws-ec2-metadata-token: $token" http:/
 export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-ap-south-1}"
 
 command -v aws > /dev/null || sudo apt-get install -y awscli
-
-echo "== making the tables"
-python3 "$ROOT/common/summarize.py" bench-sql "$RUN"
 
 echo "== cloudwatch, one export per attempt"
 python3 "$ROOT/common/export-search.py" bench-sql "$RUN" --backend "$BACKEND_ID" --loadgen "$LOADGEN_ID" --db "$DB_ID"
