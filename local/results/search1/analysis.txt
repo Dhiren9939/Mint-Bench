@@ -1,0 +1,15 @@
+ 1425 users pass      290 req/s  p50     4.1  p95     11.4  p99     18.2 ms
+        redis: 13.99 commands/request (4054/s), 0.109 new keys/request, cpu 10% of a core, fork 479 us, 19670 keys at the end
+        per request: get 7.33, eval 3.66, psetex 1.99, set 1.00, info 0.01, dbsize 0.00
+        container cpu% (100 = one core): api 53, loadgen 32, pg 10, redis 11
+        container mem MB: api 402, loadgen 716, pg 89, redis 8
+ 1960 users pass      397 req/s  p50     4.0  p95     13.3  p99     23.1 ms
+        redis: 14.75 commands/request (5847/s), 0.124 new keys/request, cpu 12% of a core, fork 587 us, 27724 keys at the end
+        per request: get 7.82, eval 3.91, psetex 2.01, set 1.00, info 0.00, dbsize 0.00
+        container cpu% (100 = one core): api 63, loadgen 35, pg 12, redis 13
+        container mem MB: api 421, loadgen 987, pg 89, redis 10
+ 2500 users fail      328 req/s  p50  2644.3  p95   5362.7  p99   6310.0 ms
+        redis: 238.14 commands/request (78081/s), -0.065 new keys/request, cpu 31% of a core, fork 4689 us, 20993 keys at the end
+        per request: get 157.03, eval 78.51, psetex 2.00, set 1.00, info 0.01, dbsize 0.00
+        container cpu% (100 = one core): api 139, loadgen 28, pg 9, redis 32
+        container mem MB: api 503, loadgen 1, pg 89, redis 11

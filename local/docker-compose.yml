@@ -1,0 +1,102 @@
+# The bench-sql arm on this machine, to find what the knee is without paying for AWS.
+#
+#   api + redis   the backend EC2 (t3.micro): 2 vCPUs, no per-container cpu limit, they share the same 2 threads
+#   postgres      the RDS (db.t3.micro): 2 vCPUs, 1 GB
+#   loadgen       the load generator: 2 cpus, 4 GB, its own redis for the file list
+#
+# The vCPUs on a t3 are 2 hyperthreads of one core, so api and redis are pinned to one hyperthread pair (2,3).
+# Pinning and not a --cpus quota, a quota throttles in bursts and makes latency cliffs of its own.
+# The prod profile and the prod config are used as they are, only the datasource url is changed (no ssl).
+name: mint-local
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mint-pg
+    environment:
+      POSTGRES_USER: mintadmin
+      POSTGRES_PASSWORD: bench
+      POSTGRES_DB: mintdb
+    command: [ "postgres", "-c", "shared_buffers=256MB" ]
+    volumes:
+      - ../bench-sql/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mintadmin -d mintdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    cpuset: "4,10"
+    mem_limit: 1g
+    networks: [mint-net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: mint-redis
+    command: [ "redis-server", "--save", "60", "1", "--maxmemory", "150mb", "--maxmemory-policy", "allkeys-lru" ]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    cpuset: "2,3"
+    mem_limit: 200m
+    networks: [mint-net]
+
+  api:
+    image: mint-backend:local
+    build:
+      context: ${BACKEND_DIR:-../../Mint/.claude/worktrees/bench-sql/backend}
+    container_name: mint-api
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_TOOL_OPTIONS: >-
+        -XX:MaxRAMPercentage=85.0
+        -XX:InitialRAMPercentage=40.0
+        -XX:+UseG1GC
+        -Xlog:gc:stdout:time,uptime
+      DB_USERNAME: mintadmin
+      DB_PASSWORD: bench
+      DB_HOST: postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mintdb
+      # the presigner needs credentials to sign, nothing is ever sent to aws
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: ap-south-1
+      AWS_EC2_METADATA_DISABLED: "true"
+      # same raised limits as bench-sql/compose.override.yml
+      MINT_CAP_GLOBAL_GET: "100000000"
+      MINT_CAP_GLOBAL_POST: "100000000"
+      MINT_CAP_IP_GET: "100000000"
+      MINT_CAP_IP_POST: "100000000"
+      MINT_CAP_USER_GET: "100000000"
+      MINT_CAP_USER_POST: "100000000"
+    volumes:
+      - ${BACKEND_DIR:-../../Mint/.claude/worktrees/bench-sql/backend}/config:/app/config:ro
+    ports:
+      - "18080:8080"
+    cpuset: "2,3"
+    mem_limit: 700m
+    networks: [mint-net]
+
+  loadgen:
+    build: ./loadgen
+    image: mint-loadgen:local
+    container_name: mint-loadgen
+    user: root
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes:
+      - ..:/bench
+    ulimits:
+      nofile: 1048576
+    sysctls:
+      net.ipv4.ip_local_port_range: "1024 65535"
+    cpuset: "6,8"
+    mem_limit: 4g
+    networks: [mint-net]
+
+networks:
+  mint-net:

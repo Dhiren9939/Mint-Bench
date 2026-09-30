@@ -1,0 +1,5 @@
+ 2500 users pass      508 req/s  p50     2.8  p95      9.2  p99     15.3 ms
+        redis: 10.99 commands/request (5582/s), -0.001 new keys/request, cpu 6% of a core, fork 356 us, 628 keys at the end
+        per request: hmget 3.00, pexpire 3.00, hset 3.00, evalsha 1.00, time 1.00, info 0.00
+        container cpu% (100 = one core): api 60, loadgen 43, pg 17, redis 7
+        container mem MB: api 437, loadgen 1, pg 88, redis 4
