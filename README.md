@@ -23,9 +23,9 @@ Mint-Bench/
 
 ## Data
 
-Every arm produces the same files in `<arm>/results/<run-id>/` so one analysis works on all of them.
+Every arm produces the same files in `<arm>/results/<run-id>/vus-<N>/`, one folder per attempt, so one analysis works on all of them. Running an arm below lists them all.
 
-- `k6.csv` and `summary.json` from k6
+- `k6.csv.gz`, `summary.json`, `stats.csv` and `timeline.csv` from k6
 - `metrics.csv` from `common/export-run.py`, with the columns `timestamp,source,namespace,metric,dims,stat,value`. `source` is `backend`, `loadgen` or `db`.
 - `run.json`, written by the export script
 
@@ -81,10 +81,24 @@ The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I
    export BACKEND=admin@<backend ip> DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=...
    RESEED=bench-sql/reseed.sh k6/find-max.sh bench-sql
    ```
-   It starts at 80 users. A pass doubles the users, a fail tries halfway between the last pass and the fail. It stops when they're 5 users apart. `START`, `TOL`, `MAX_VUS`, `REST_S` (rest between passes, 2 min) and `RUN_ID` are env vars.
+   It starts at 30 users. A pass doubles the users, a fail tries halfway between the last pass and the fail. It stops when they're 5 users apart. `START`, `TOL`, `MAX_VUS`, `REST_S` (rest between passes, 2 min) and `RUN_ID` are env vars.
 
    Before every pass `bench-sql/reseed.sh` cleans RDS, seeds 10000 files split evenly between 15 min, 30 min and 24 hr expiry, and loads the file list. RDS is only reachable from the backend so the seed runs there over ssh. The seeded expiry counts from seed time so every pass starts fresh.
-3. Each pass leaves `bench-sql/results/<run-id>/vus-<N>/` with `k6.csv`, `summary.json`, `seed.csv` and `pass.json` (result and the bench start and end times). `search.json` in the run folder has the answer. Run the export script for the whole run before tearing anything down, from the first pass start to the last pass end.
+3. Every attempt (one user target) leaves `bench-sql/results/<run-id>/vus-<N>/`:
+   - `k6.csv.gz`, every raw k6 sample. Big, and gitignored, copy it somewhere else.
+   - `summary.json`, k6's own summary with the bench thresholds
+   - `seed.csv`, the files that were seeded
+   - `pass.json`, pass or fail and the warm up, bench and end times
+
+   `search.json` in the run folder has the answer. Then, on the load generator, turn the raw k6 data into tables:
+   ```bash
+   python3 common/summarize.py bench-sql <run-id>
+   ```
+   That adds `stats.csv` (per phase and request name: count, rps, p50, p95, p99, avg, max, failed, 5xx) and `timeline.csv` (the same per 10 seconds, with the users) to every attempt, and `attempts.csv` to the run folder, the bench part of every attempt in one file.
+4. From your machine, pull the CloudWatch numbers for every attempt (each gets its own `metrics.csv`). Do it before tearing anything down, and a few minutes after the last attempt since CloudWatch is behind:
+   ```bash
+   python common/export-search.py bench-sql <run-id> --backend i-... --loadgen i-... --db <rds identifier>
+   ```
 
 ## Notes
 

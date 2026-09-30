@@ -9,13 +9,14 @@
 # pass and the fail. Stop when the two are TOL users apart.
 #
 # RESEED is run before every pass, it cleans and seeds the database and loads the file list.
-# Results go in <arm>/results/<run id>/vus-<N>/ (k6.csv, summary.json, pass.json).
+# Results go in <arm>/results/<run id>/vus-<N>/ (k6.csv.gz, summary.json, seed.csv, pass.json).
+# Then common/summarize.py and common/export-search.py turn them into tables for analysis.
 set -euo pipefail
 
 ARM="${1:?usage: find-max.sh <arm>}"
 : "${RESEED:?set RESEED to the script that seeds the arm}"
 
-START="${START:-80}"
+START="${START:-30}"
 TOL="${TOL:-5}"
 MAX_VUS="${MAX_VUS:-2560}"
 MAX_PASSES="${MAX_PASSES:-12}"
@@ -42,14 +43,19 @@ run_pass() {
   local start end rc=0
   start=$(date -u +%s)
   k6 run -e BASE_URL="$BASE_URL" -e VUS="$n" -e WARMUP_S="$WARMUP_S" -e BENCH_S="$BENCH_S" -e COOLDOWN_S="$COOLDOWN_S" \
-    --out csv="$dir/k6.csv" --summary-export="$dir/summary.json" "$HERE/mint.js" || rc=$?
+    --out csv="$dir/k6.csv.gz" --summary-export="$dir/summary.json" "$HERE/mint.js" || rc=$?
   end=$(date -u +%s)
+
+  # k6 builds the extension on the first run, so take the real start from its first sample
+  local first
+  first=$(zcat "$dir/k6.csv.gz" 2>/dev/null | awk -F, 'NR==2{print int($2); exit}' || true)
+  [ -n "$first" ] && start="$first"
 
   local result=broken
   [ "$rc" = 0 ] && result=pass
   [ "$rc" = 99 ] && result=fail
   cat > "$dir/pass.json" <<EOF
-{"vus": $n, "result": "$result", "k6_exit": $rc, "start": $start, "bench_start": $((start + WARMUP_S)), "bench_end": $((start + WARMUP_S + BENCH_S)), "end": $end}
+{"vus": $n, "result": "$result", "k6_exit": $rc, "warmup_s": $WARMUP_S, "bench_s": $BENCH_S, "cooldown_s": $COOLDOWN_S, "start": $start, "bench_start": $((start + WARMUP_S)), "bench_end": $((start + WARMUP_S + BENCH_S)), "end": $end}
 EOF
   [ "$result" = pass ] && return 0
   [ "$result" = fail ] && return 1

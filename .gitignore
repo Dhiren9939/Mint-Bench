@@ -4,3 +4,5 @@
 *.tfvars
 *.pem
 __pycache__/
+# raw k6 output is too big for git, keep it somewhere else
+**/results/**/k6.csv*
