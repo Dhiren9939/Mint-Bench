@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Sets up the bench-sql backend EC2 (Debian). Run it on the box over ssh.
-# Needs ~/Mint/backend and ~/Mint-Bench copied over first, see the README.
+# Sets up the bench-sql backend EC2 (Debian). The Mint infra runs this from user data,
+# but you can also run it by hand on the box to retry.
+# Needs the Mint and Mint-Bench checkouts, MINT_DIR and BENCH_DIR say where they are
+# (user data puts them in /opt/src).
 #
-#   DB_HOST=<rds endpoint> DB_USERNAME=... DB_PASSWORD=... ./setup-ec2.sh
+#   DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=... ./setup-ec2.sh
 set -euo pipefail
 
 : "${DB_HOST:?}" "${DB_USERNAME:?}" "${DB_PASSWORD:?}"

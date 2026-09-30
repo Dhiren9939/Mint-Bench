@@ -71,12 +71,9 @@ The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I
 
 ## Running an arm
 
-1. Set up the backend EC2. Copy the backend source and this repo onto it, then run the setup script. It adds swap, installs docker and the CloudWatch agent, applies the schema, builds the image on the box and starts it with the `mint.cap.*` limits raised (every VU shares one IP).
+1. The backend EC2 sets itself up. The Mint infra runs `bench-sql/setup-ec2.sh` from user data: it clones Mint (`bench-sql` branch) and this repo into `/opt/src`, adds swap, installs docker and the CloudWatch agent, applies the schema, builds the image on the box and starts it with the `mint.cap.*` limits raised (every VU shares one IP). Both repos have to be public for the clone. It takes a few minutes after `terraform apply`. Watch it with `tail -f /var/log/user-data.log` over ssh, `/var/log/mint-ready` shows up when it's done. To retry by hand:
    ```bash
-   tar -C <Mint checkout> -cf - backend | ssh -i mintkey.pem admin@<ec2 ip> 'mkdir -p Mint && tar -C Mint -xf -'
-   scp -i mintkey.pem -r <this repo> admin@<ec2 ip>:Mint-Bench
-   ssh -i mintkey.pem admin@<ec2 ip>
-   DB_HOST=<rds endpoint> DB_USERNAME=... DB_PASSWORD=... Mint-Bench/bench-sql/setup-ec2.sh
+   sudo env MINT_DIR=/opt/src/Mint BENCH_DIR=/opt/src/Mint-Bench DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=... bash /opt/src/Mint-Bench/bench-sql/setup-ec2.sh
    ```
 2. On the backend EC2 run the seed, RDS isn't reachable from anywhere else.
    ```bash
