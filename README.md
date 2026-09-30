@@ -9,50 +9,21 @@ Load tests for [Mint](https://github.com/Dhiren9939/Mint). Every benchmark arm u
 - Dynamo with the cache
 - ECS, what `main` runs
 
-Only the API and the database run in each arm, no S3 and no CloudFront. Every arm gets its own folder here for the seed data and the results.
+Only the API and the database run in each arm, no S3 and no CloudFront. Every arm gets its own folder here for the results.
 
 ## Layout
 
 ```text
 Mint-Bench/
-  common/       CloudWatch agent config, the metric lists and the export script, same for every arm
+  common/       CloudWatch agent config, metric lists, export and summary scripts, same for every arm
   loadgen/      terraform for the box k6 runs on
-  k6/           the k6 script and the file list loader
-  bench-sql/    setup script, seed script, data/ and results/
+  k6/           the k6 script, the search script and the file list loader
+  bench-sql/    setup, seed, start and after scripts, and results/
 ```
 
-## Data
+## Results
 
-Every arm produces the same files in `<arm>/results/<run-id>/vus-<N>/`, one folder per attempt, so one analysis works on all of them. Running an arm below lists them all.
-
-- `k6.csv.gz`, `summary.json`, `stats.csv` and `timeline.csv` from k6
-- `metrics.csv` from `common/export-run.py`, with the columns `timestamp,source,namespace,metric,dims,stat,value`. `source` is `backend`, `loadgen` or `db`.
-- `run.json`, written by the export script
-
-The backend gets the same CloudWatch agent config on every EC2 arm (`common/cwagent.json`): CPU including steal, memory, swap, disk, disk IO, network, and CPU and memory per process for java, redis-server, dockerd, containerd and the agent itself. `common/queries.json` lists what gets exported for the backend and the load generator, and each arm has a `queries.json` for its database (RDS for `bench-sql`).
-
-```bash
-python common/export-run.py bench-sql 2026-10-01-a \
-  --start 2026-10-01T10:00:00Z --end 2026-10-01T11:00:00Z \
-  --backend i-... --loadgen i-... --db <rds identifier>
-```
-
-Needs the aws CLI logged in. Export soon after a run, CloudWatch only keeps 1 minute data for 15 days.
-
-## Load generator
-
-Debian 12 on a c6i.xlarge in the default VPC. `user_data.sh` installs k6, Redis (k6 keeps the file list in it) and the CloudWatch agent.
-
-```bash
-cd loadgen
-terraform init
-terraform plan -out plan
-terraform apply plan
-```
-
-SSH in with `mintkey.pem` as `admin`. `ssh_cidr` defaults to `0.0.0.0/0`, pass your own IP if you want.
-
-It isn't in the backend's VPC so it hits the backend over the public IP, through `mint-bench-sql.dhiren.xyz`. There's no Elastic IP so the record changes if the EC2 gets stopped and started.
+- `bench-sql`: 1420 users pass, 1425 fail (run `2026-09-30-0953`). That's about 284 requests per second on a t3.micro with RDS.
 
 ## The users
 
@@ -63,52 +34,69 @@ Every VU loops forever, with a 5 second pause before it starts the loop again (`
 
 A file leaves the list as soon as it runs out of downloads. An expired file stays for 2 more minutes so people keep hitting expired files. Those 404s are expected and don't count as errors.
 
-A pass is k6 running N users: 2 minutes ramping up (warm up), 5 minutes holding N (the bench), 2 minutes ramping down (warm down). Only the bench part counts for the thresholds. `WARMUP_S`, `BENCH_S` and `COOLDOWN_S` change the times.
+A user makes about 0.2 requests per second, so 1000 users is about 200 requests per second.
 
-A pass has to keep the thresholds: p95 under 200ms, p99 under 600ms, server errors under 1% and checks over 99%.
+## How a run works
 
-The numbers come from k6 only. Micrometer and CloudWatch are just kept in case I want to look deeper later. Still check the load generator CPU after a run, if it was maxed out the latency numbers are its fault.
+A pass is k6 running N users: 2 minutes ramping up (warm up), 5 minutes holding N (the bench), 2 minutes ramping down. Only the bench part counts. It passes if p95 stays under 200ms, p99 under 600ms, server errors under 1% and checks over 99%. `WARMUP_S`, `BENCH_S` and `COOLDOWN_S` change the times.
+
+`k6/find-max.sh` looks for the most users the arm holds. It starts at 30 users. A pass doubles the users, a fail tries halfway between the last pass and the fail. It stops when they're 5 users apart. `START`, `TOL`, `MAX_VUS`, `REST_S` (rest between passes) and `RUN_ID` are env vars. Before every pass the arm's reseed script cleans the database and loads the file list, so every pass starts fresh.
+
+The numbers come from k6 only. CloudWatch is there to explain why a pass failed. Check the load generator CPU too, if it was maxed out the latency numbers are its fault.
 
 ## Running an arm
 
-1. The backend EC2 sets itself up. The Mint infra runs `bench-sql/setup-ec2.sh` from user data: it clones Mint (`bench-sql` branch) and this repo into `/opt/src`, adds swap, installs docker and the CloudWatch agent, applies the schema, builds the image on the box and starts it with the `mint.cap.*` limits raised (every VU shares one IP). Both repos have to be public for the clone. It takes a few minutes after `terraform apply`. Watch it with `tail -f /var/log/user-data.log` over ssh, `/var/log/mint-ready` shows up when it's done. To retry by hand:
+1. Backend. The Mint infra sets it up from user data by running `bench-sql/setup-ec2.sh`: it clones Mint (`bench-sql` branch) and this repo into `/opt/src`, adds swap, installs docker and the CloudWatch agent, applies the schema, builds the image on the box and starts it with the `mint.cap.*` limits raised (every VU shares one IP). Both repos have to be public. It takes a few minutes after `terraform apply`, watch it with `tail -f /var/log/user-data.log`, `/var/log/mint-ready` shows up when it's done.
+2. Load generator. Debian 12 on a c6i.xlarge in the default VPC, `user_data.sh` installs k6, Redis (k6 keeps the file list in it) and the CloudWatch agent.
    ```bash
-   sudo env MINT_DIR=/opt/src/Mint BENCH_DIR=/opt/src/Mint-Bench DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=... bash /opt/src/Mint-Bench/bench-sql/setup-ec2.sh
+   cd loadgen
+   terraform init
+   terraform plan -out plan
+   terraform apply plan
    ```
-2. Find the most users the arm holds. The load generator has to ssh to the backend. Either connect to it with `ssh -A`, or copy your key onto it (`scp -i mintkey.pem mintkey.pem admin@<loadgen ip>:~/mintkey.pem`, then `chmod 600 ~/mintkey.pem` there) and set `SSH_KEY=~/mintkey.pem`. The box goes away with the teardown, but it's your key, so don't leave it running. Then:
+   Don't change `user_data.sh` once it's running, the box gets replaced. It isn't in the backend's VPC so it hits the backend over the public IP through `mint-bench-sql.dhiren.xyz`. No Elastic IP, so the address changes if it gets stopped and started.
+3. On the load generator, clone this repo, copy your key onto the box and fill in the settings:
    ```bash
    git clone https://github.com/Dhiren9939/Mint-Bench.git && cd Mint-Bench
-   export BACKEND=admin@<backend ip> DB_HOST=<rds address> DB_USERNAME=... DB_PASSWORD=...
+   cp bench-sql/bench.env.example bench-sql/bench.env    # then fill it in, it's gitignored
+   ```
+4. Run it, inside `tmux` since it takes an hour or more and stops if the ssh session drops:
+   ```bash
    bench-sql/start.sh
    ```
-   `start.sh` checks the api, the ssh to the backend and Redis, then runs the search and prints the progress in your terminal (a copy goes to `bench-sql/results/<run-id>/run.log`). It takes an hour or more and stops if the ssh session drops, so run it inside `tmux` (`sudo apt-get install -y tmux` if it's missing). `DETACH=1` runs it in the background instead, then you have to tail the log. It's done when it prints the answer and `search.json` shows up.
-   It starts at 30 users. A pass doubles the users, a fail tries halfway between the last pass and the fail. It stops when they're 5 users apart. `START`, `TOL`, `MAX_VUS`, `REST_S` (rest between passes, 2 min) and `RUN_ID` are env vars.
-
-   Before every pass `bench-sql/reseed.sh` cleans RDS, seeds 10000 files split evenly between 15 min, 30 min and 24 hr expiry, and loads the file list. RDS is only reachable from the backend so the seed runs there over ssh. The seeded expiry counts from seed time so every pass starts fresh.
-3. Every attempt (one user target) leaves `bench-sql/results/<run-id>/vus-<N>/`:
-   - `k6.csv.gz`, every raw k6 sample. Big, and gitignored, copy it somewhere else.
-   - `summary.json`, k6's own summary with the bench thresholds
-   - `seed.csv`, the files that were seeded
-   - `pass.json`, pass or fail and the warm up, bench and end times
-
-   `search.json` in the run folder has the answer. `summarize.py` adds `stats.csv` (per phase and request name: count, rps, p50, p95, p99, avg, max, failed, 5xx) and `timeline.csv` (the same per 10 seconds, with the users) to every attempt, and `attempts.csv` to the run folder, the bench part of every attempt in one file.
-4. When the run is done, on the load generator run `bench-sql/after.sh` (it takes the latest run, or pass a run id). It pulls the CloudWatch numbers for every attempt into each attempt's `metrics.csv` and leaves the raw k6 data alone. `common/summarize.py <arm> <run-id>` makes the summary tables from the raw data whenever you want them, on your machine or there. It reads CloudWatch with the box's own IAM role (the `read_metrics` policy in `loadgen/main.tf`) and installs the aws CLI if it's missing. Wait a few minutes after the last attempt since CloudWatch is behind.
-
-   `start.sh` and `after.sh` read their settings from `bench-sql/bench.env` on the load generator, copy `bench.env.example` and fill it in. It's gitignored.
-5. Get the results, raw data included, onto your machine before tearing anything down:
+   It checks the api, the ssh to the backend and Redis first. Progress prints in the terminal and a copy goes to `bench-sql/results/<run-id>/run.log`. `DETACH=1` runs it in the background. It's done when it prints the answer and `search.json` shows up.
+5. When it's done, on the load generator: `bench-sql/after.sh`. It pulls the CloudWatch numbers for every attempt into `metrics.csv`. Wait a few minutes after the last attempt, CloudWatch is behind. It reads with the box's own role (`read_metrics` in `loadgen/main.tf`).
+6. On your machine, copy everything down before tearing anything down:
    ```bash
    LOADGEN_IP=... SSH_KEY=<mintkey.pem> bench-sql/fetch.sh <run-id>
    ```
-   The raw `k6.csv.gz` files stay on disk here for any deeper analysis later, git ignores them because they're too big to commit.
+
+## Data
+
+Every attempt leaves `<arm>/results/<run-id>/vus-<N>/`, the same files for every arm so one analysis works on all of them.
+
+- `k6.csv.gz`, every raw k6 sample. Gitignored, it's too big for git.
+- `summary.json`, k6's own summary
+- `seed.csv`, the files that were seeded
+- `pass.json`, pass or fail and the warm up, bench and end times
+- `metrics.csv`, from `common/export-run.py`. Columns `timestamp,source,namespace,metric,dims,stat,value`, `source` is `backend`, `loadgen` or `db`.
+- `run.json`, written by the export script
+
+`search.json` in the run folder has the answer.
+
+`python common/summarize.py <arm> <run-id>` makes tables from the raw data, whenever you want them: `stats.csv` (per phase and request name: count, rps, p50, p95, p99, avg, max, failed, 5xx) and `timeline.csv` (the same per 10 seconds, with the users) in every attempt, and `attempts.csv` in the run folder with the bench part of every attempt.
+
+The backend gets the same CloudWatch agent config on every EC2 arm (`common/cwagent.json`): CPU including steal, memory, swap, disk, disk IO, network, and CPU and memory per process for java, redis-server, dockerd, containerd and the agent itself. `common/queries.json` lists what gets exported for the backend and the load generator, and each arm has a `queries.json` for its database.
 
 ## Notes
 
-- k6 2.x removed `k6/experimental/redis`. The script uses `k6/x/redis` so it needs `K6_BINARY_PROVISIONING=true` to build the extension. Only tried it in Docker so far.
+- k6 2.x removed `k6/experimental/redis`. The script uses `k6/x/redis` so it needs `K6_BINARY_PROVISIONING=true`, `find-max.sh` sets it.
 - 10000 seeded files are about 2.5 MB on the RDS disk.
 - A GET on an expired file returns 404 and marks the row deleted, so it writes.
+- Redis on the backend is the rate limiter (Bucket4j), three calls per request. It uses about a fifth of the box.
 - The backend cleanup job runs every hour. The S3 delete fails with no bucket, it just gets logged.
 
 ## Todo
 
-- `setup-ec2.sh` and the export script haven't run against real AWS yet. The dimensions the agent puts on its metrics might need a tweak in `queries.json`.
-- The expired file path in the k6 script isn't tested and `user_data.sh` hasn't run on a real box yet
+- A pass is about 9 minutes and the shortest expiry is 15, so the expired file path in the k6 script never fires. Seed with random ages if I want it tested.
+- Restart the api container before every pass so each one starts from the same state.

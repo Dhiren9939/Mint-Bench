@@ -10,7 +10,7 @@
 #
 # RESEED is run before every pass, it cleans and seeds the database and loads the file list.
 # Results go in <arm>/results/<run id>/vus-<N>/ (k6.csv.gz, summary.json, seed.csv, pass.json).
-# Then common/summarize.py and common/export-search.py turn them into tables for analysis.
+# bench-sql/after.sh adds the CloudWatch numbers, common/summarize.py makes tables from the raw data.
 set -euo pipefail
 
 ARM="${1:?usage: find-max.sh <arm>}"
