@@ -32,6 +32,9 @@ const UPLOAD_WAIT_MIN_S = Number(__ENV.UPLOAD_WAIT_MIN_S || 1);
 const UPLOAD_WAIT_MAX_S = Number(__ENV.UPLOAD_WAIT_MAX_S || 3);
 // pause before a user starts the loop again
 const THINK_MS = Number(__ENV.THINK_MS || 5000);
+// 0 = every pause is exactly THINK_MS. 0.5 = each pause is random between 50% and 150% of it (same average),
+// so users drift apart instead of staying in step after a slow moment on the server.
+const THINK_JITTER = Number(__ENV.THINK_JITTER || 0);
 const EXPIRED_GRACE_MS = 2 * 60 * 1000;
 // Clock skew between this box and the backend: a hit this close to expiry may go either way.
 const EXPIRY_SLACK_MS = 2000;
@@ -183,5 +186,5 @@ export default async function () {
   if (claim) download(claim);
   else await upload();
 
-  if (THINK_MS > 0) sleep(THINK_MS / 1000);
+  if (THINK_MS > 0) sleep((THINK_MS / 1000) * (1 - THINK_JITTER + 2 * THINK_JITTER * Math.random()));
 }
