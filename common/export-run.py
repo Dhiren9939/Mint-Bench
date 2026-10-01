@@ -3,7 +3,7 @@
 
 Every arm gets the same csv columns:
     timestamp,source,namespace,metric,dims,stat,value
-source is backend, loadgen, db or cache. Which metrics get exported comes from common/queries.json
+source is backend, loadgen or db. Which metrics get exported comes from common/queries.json
 and <arm>/queries.json, so an arm without an RDS just has no db rows.
 
 python common/export-run.py bench-sql 2026-10-01-a \
@@ -75,11 +75,10 @@ def main():
     p.add_argument("--backend", help="backend EC2 instance id")
     p.add_argument("--loadgen", help="load generator instance id")
     p.add_argument("--db", help="RDS instance identifier, the first part of the endpoint")
-    p.add_argument("--cache", help="ElastiCache replication group id, the nodes are <id>-001 and <id>-002")
     p.add_argument("--out", help="output folder, default <arm>/results/<run-id>")
     a = p.parse_args()
 
-    values = {k: v for k, v in {"backend": a.backend, "loadgen": a.loadgen, "db": a.db, "cache": a.cache}.items() if v}
+    values = {k: v for k, v in {"backend": a.backend, "loadgen": a.loadgen, "db": a.db}.items() if v}
     specs = load(os.path.join(ROOT, "common", "queries.json")) + load(os.path.join(ROOT, a.arm, "queries.json"))
 
     queries, meta = [], {}

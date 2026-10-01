@@ -5,7 +5,8 @@ Load tests for [Mint](https://github.com/Dhiren9939/Mint). Every benchmark arm u
 ## Arms
 
 - `bench-sql`: the `db-sql` branch, RDS Postgres
-- `bench-dynamo-cache`: Dynamo with the cache, the `bench-dynamo-cache-lua` branch
+- `bench-dynamo`: Dynamo without the cache, the `bench-dynamo-lua` branch
+- Dynamo with the cache
 - ECS, what `main` runs
 
 Only the API and the database run in each arm, no S3 and no CloudFront. Every arm gets its own folder here for the results.
@@ -18,7 +19,7 @@ Mint-Bench/
   loadgen/      terraform for the box k6 runs on
   k6/           the k6 script, the search script and the file list loader
   bench-sql/    setup, seed, start and after scripts, and results/
-  bench-dynamo-cache/ the same for the Dynamo arm
+  bench-dynamo/ the same for the Dynamo arm
   dashboard/    the dashboard: build.py collects the results, app/ is the React page
   local/        the docker replica used to find the Bucket4j retry storm
 ```
@@ -105,15 +106,14 @@ One chart and a list of attempts. Pick a metric (latency, requests per second, C
 
 The backend gets the same CloudWatch agent config on every EC2 arm (`common/cwagent.json`): CPU including steal, memory, swap, disk, disk IO, network, and CPU and memory per process for java, redis-server, dockerd, containerd and the agent itself. `common/queries.json` lists what gets exported for the backend and the load generator, and each arm has a `queries.json` for its database.
 
-## bench-dynamo-cache
+## bench-dynamo
 
-Same flow as `bench-sql` with `bench-dynamo-cache/` in place of `bench-sql/`: `terraform apply` in the Mint `bench-dynamo-cache-lua` branch gets the backend ready from user data (`bench-dynamo-cache/setup-ec2.sh`), then on the load generator `bench-dynamo-cache/start.sh` and `bench-dynamo-cache/after.sh`, and `bench-dynamo-cache/fetch.sh` on your machine. ssh into the backend is only for watching it with `htop`. The processing (`common/summarize.py`) runs on your machine on the fetched data, not on the load generator.
+Same flow as `bench-sql` with `bench-dynamo/` in place of `bench-sql/`: `terraform apply` in the Mint `bench-dynamo-lua` branch gets the backend ready from user data (`bench-dynamo/setup-ec2.sh`), then on the load generator `bench-dynamo/start.sh` and `bench-dynamo/after.sh`, and `bench-dynamo/fetch.sh` on your machine. ssh into the backend is only for watching it with `htop`. The processing (`common/summarize.py`) runs on your machine on the fetched data, not on the load generator.
 
-- Backend: the Mint `bench-dynamo-cache-lua` branch, Lua rate limiter, file metadata cache on (5 minute TTL). The limiter and the cache both live in ElastiCache (Valkey 9, two `cache.t4g.micro` nodes, TLS and an AUTH token terraform generates), there is no Redis on the box. The API talks to DynamoDB with the box's instance role, there are no keys.
-- Table: `mint-bench-dynamo-cache-file-metadata`, on demand. `bench.env` takes it as `DYNAMO_TABLE`, `after.sh` uses it as the `--db` for the `AWS/DynamoDB` metrics in `bench-dynamo-cache/queries.json`.
+- Backend: the Mint `bench-dynamo-lua` branch, Lua rate limiter, file metadata cache off (`mint.cache.enabled=false`), Redis is a container next to the api. The API talks to DynamoDB with the box's instance role, there are no keys.
+- Table: `mint-bench-dynamo-file-metadata`, on demand. `bench.env` takes it as `DYNAMO_TABLE`, `after.sh` uses it as the `--db` for the `AWS/DynamoDB` metrics in `bench-dynamo/queries.json`.
 - Reseed: Dynamo has no truncate, so `seed-dynamo.py` scans and deletes every item and writes 10000 new ones. It runs on the backend over ssh (its role can write the table) and `reseed.sh` copies `seed.csv` back. Needs `python3-boto3`, `setup-ec2.sh` installs it.
-- Cache: `after.sh` takes the replication group id as `CACHE_ID` (`--cache`) and exports the `AWS/ElastiCache` metrics of both nodes (hits, misses, engine CPU, memory, connections). `setup-ec2.sh` fails if the api never connects to ElastiCache, so a run can't quietly go without the limiter and the cache.
-- The api is at `mint-bench-dynamo-cache.dhiren.xyz`.
+- The api is at `mint-bench-dynamo.dhiren.xyz`.
 
 ## Notes
 
