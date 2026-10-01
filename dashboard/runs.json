@@ -1,0 +1,4 @@
+[
+  {"arm": "bench-sql", "run": "2026-09-30-0953", "label": "Bucket4j limiter"},
+  {"arm": "bench-sql", "run": "2026-09-30-1511", "label": "Lua limiter"}
+]

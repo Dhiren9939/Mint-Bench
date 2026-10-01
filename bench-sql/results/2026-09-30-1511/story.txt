@@ -1,0 +1,7 @@
+What changed from the first run, and what it shows
+
+Two changes. The Bucket4j limiter is replaced by one Lua script in Redis. It checks the global, IP and user buckets and takes a token from each in a single call, so there is nothing to retry however hot a key gets. And the users now pause a random 2.5 to 7.5 seconds (THINK_JITTER=0.5) instead of exactly 5, with the same average, so they don't all come back at the same moment after a stall.
+
+4,687 users pass (about 950 requests per second, p99 459 ms) and 4,781 fail. That is about 3.3 times the first run. The backend is at about 63% CPU at the limit and about 79% at 6,000 users. Requests per second grows in a straight line with users the whole way, so the limiter is no longer what breaks first.
+
+This is not a like for like comparison. The first run used a fixed 5 second pause, so part of the gain is the jitter and part is the limiter. A Bucket4j run with jitter would split the two. The short whole-server stalls seen without jitter were never explained, jitter just made them matter less.

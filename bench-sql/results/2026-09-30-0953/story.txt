@@ -1,0 +1,7 @@
+Why this run stopped at 1,420 users
+
+1,420 users passed and 1,425 failed, about 285 requests per second. That is far too early. The backend was only about a quarter busy and RDS was close to idle (about 9% CPU), so neither of them was the limit. After about a minute at the target load, latency went to seconds, and it recovered once the load dropped.
+
+The rate limiter was the problem. Bucket4j was set up with casBasedBuilder over one Redis connection. Every request reads a bucket and then tries to update it with a compare-and-set, and it retries if another request changed the bucket first. All requests share the global bucket and, with one load generator, the same IP bucket. Those two keys are hot, so the retries pile up on each other.
+
+We reproduced it locally in Docker. Redis commands per request went from about 15 at 1,960 users to 238 at 2,500, and 598 of the 600 Tomcat threads were waiting on Redis. The fix, and what it did to the limit, is in the dashboard for run 2026-09-30-1511.

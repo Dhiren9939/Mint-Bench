@@ -5,7 +5,7 @@ Load tests for [Mint](https://github.com/Dhiren9939/Mint). Every benchmark arm u
 ## Arms
 
 - `bench-sql`: the `db-sql` branch, RDS Postgres
-- Dynamo without the cache
+- `bench-dynamo`: Dynamo without the cache, the `bench-dynamo-lua` branch
 - Dynamo with the cache
 - ECS, what `main` runs
 
@@ -19,6 +19,9 @@ Mint-Bench/
   loadgen/      terraform for the box k6 runs on
   k6/           the k6 script, the search script and the file list loader
   bench-sql/    setup, seed, start and after scripts, and results/
+  bench-dynamo/ the same for the Dynamo arm
+  dashboard/    the dashboard: build.py collects the results, app/ is the React page
+  local/        the docker replica used to find the Bucket4j retry storm
 ```
 
 ## Results
@@ -88,14 +91,29 @@ Every attempt leaves `<arm>/results/<run-id>/vus-<N>/`, the same files for every
 
 ## Dashboard
 
+One dashboard for every arm and every version, `dashboard.html` in the root. It is a React app (Vite, Chart.js) in `dashboard/app`, built with bun into one file that opens by double clicking it. The runs in it are listed in `dashboard/runs.json` (arm, run id and a label). For a new run, make its tables, add a line to `runs.json` and build again:
+
 ```bash
-python common/summarize.py bench-sql <run-id>
-python dashboard/build.py bench-sql <run-id>
+python common/summarize.py <arm> <run-id>
+# add {"arm": "<arm>", "run": "<run-id>", "label": "<version name>"} to dashboard/runs.json
+python dashboard/build.py                          # collects the data into dashboard/app/src/data.json
+cd dashboard/app && bun install && bun run build   # writes dashboard.html in the root
 ```
 
-That writes `bench-sql/results/<run-id>/dashboard.html`, one file with the data in it, open it in a browser (it loads Chart.js from a CDN so it needs internet). It shows every attempt (latency, requests per second, CPU and swap per attempt), then one attempt over time (latency, users, CPU per process, memory, load generator, RDS), then two attempts side by side. It only reads the shared result files so it works for every arm. The dashboard file is gitignored.
+While working on the page itself, `bun run dev` in `dashboard/app` serves it with hot reload (run `build.py` first, it needs `src/data.json`). `data.json`, `node_modules` and `dist` are gitignored, `dashboard.html` has the data in it.
+
+One chart and a list of attempts. Pick a metric (latency, requests per second, CPU, memory, RDS ...) and whether users or time is on the x axis. By users draws a line per version with a point per attempt (filled is a pass, hollow is a fail), over time draws the attempts you picked in the list, up to 7, from any version. Drag on the chart to zoom into a band, sideways zooms x only and up and down zooms y only. Drag along an axis to change just that axis. Shift and drag moves the chart, scroll zooms, double click resets. Zooming in stops at 50 times and zooming out at the full view. The address holds the view (metric, axis, picked attempts), so a link or a bookmark opens the same thing. Notes shows `story.txt` from each run folder (first line is the heading, blank lines split paragraphs), the explanation of that version.
 
 The backend gets the same CloudWatch agent config on every EC2 arm (`common/cwagent.json`): CPU including steal, memory, swap, disk, disk IO, network, and CPU and memory per process for java, redis-server, dockerd, containerd and the agent itself. `common/queries.json` lists what gets exported for the backend and the load generator, and each arm has a `queries.json` for its database.
+
+## bench-dynamo
+
+Same flow as `bench-sql` with `bench-dynamo/` in place of `bench-sql/`: `terraform apply` in the Mint `bench-dynamo-lua` branch gets the backend ready from user data (`bench-dynamo/setup-ec2.sh`), then on the load generator `bench-dynamo/start.sh` and `bench-dynamo/after.sh`, and `bench-dynamo/fetch.sh` on your machine. ssh into the backend is only for watching it with `htop`. The processing (`common/summarize.py`) runs on your machine on the fetched data, not on the load generator.
+
+- Backend: the Mint `bench-dynamo-lua` branch, Lua rate limiter, file metadata cache off (`mint.cache.enabled=false`), Redis is a container next to the api. The API talks to DynamoDB with the box's instance role, there are no keys.
+- Table: `mint-bench-dynamo-file-metadata`, on demand. `bench.env` takes it as `DYNAMO_TABLE`, `after.sh` uses it as the `--db` for the `AWS/DynamoDB` metrics in `bench-dynamo/queries.json`.
+- Reseed: Dynamo has no truncate, so `seed-dynamo.py` scans and deletes every item and writes 10000 new ones. It runs on the backend over ssh (its role can write the table) and `reseed.sh` copies `seed.csv` back. Needs `python3-boto3`, `setup-ec2.sh` installs it.
+- The api is at `mint-bench-dynamo.dhiren.xyz`.
 
 ## Notes
 

@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-"""Builds one HTML dashboard for a find-max run. Works for any arm, it only reads the shared result files.
+"""Collects the data for the one dashboard, for every arm and every version listed in dashboard/runs.json.
 
-  python common/summarize.py <arm> <run-id>     # once, makes stats.csv and timeline.csv from the raw data
-  python dashboard/build.py <arm> <run-id>
+  python common/summarize.py <arm> <run-id>     # once per run, makes stats.csv and timeline.csv from the raw data
+  python dashboard/build.py                     # writes dashboard/app/src/data.json
+  cd dashboard/app && bun install && bun run build   # makes dashboard.html in the root of the repo
 
-Writes <arm>/results/<run-id>/dashboard.html, one file with the data inside, open it in a browser.
+runs.json is a list of {"arm": ..., "run": ..., "label": ...}. Add a line when there is a new run, then build again.
+A run folder can have a story.txt (first line is the heading, blank lines split paragraphs), it shows up as the
+explanation of that version.
+
+The dashboard itself is a React app in dashboard/app. bun run build bundles it with this data into one file,
+dashboard.html, which opens by double clicking it. bun run dev serves it with hot reload while you work on it.
 """
-import argparse
 import csv
 import json
 import os
@@ -80,13 +85,8 @@ def attempt(d):
     }
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("arm")
-    ap.add_argument("run_id")
-    a = ap.parse_args()
-
-    run = os.path.join(ROOT, a.arm, "results", a.run_id)
+def load_run(spec):
+    run = os.path.join(ROOT, spec["arm"], "results", spec["run"])
     attempts = []
     for name in sorted(os.listdir(run)):
         d = os.path.join(run, name)
@@ -95,15 +95,22 @@ def main():
     attempts.sort(key=lambda x: x["start"])
     for i, x in enumerate(attempts, 1):
         x["order"] = i
+    out = {"arm": spec["arm"], "run": spec["run"], "label": spec.get("label", spec["run"]),
+           "search": json.load(open(os.path.join(run, "search.json"))), "attempts": attempts}
+    story = os.path.join(run, "story.txt")
+    if os.path.exists(story):
+        out["story"] = open(story, encoding="utf-8").read()
+    return out
 
-    data = {"arm": a.arm, "run": a.run_id, "search": json.load(open(os.path.join(run, "search.json"))),
-            "attempts": attempts}
-    html = open(os.path.join(HERE, "template.html"), encoding="utf-8").read()
-    html = html.replace("__DATA__", json.dumps(data, separators=(",", ":")).replace("</", "<\\/"))
-    out = os.path.join(run, "dashboard.html")
+
+def main():
+    specs = json.load(open(os.path.join(HERE, "runs.json")))
+    data = {"runs": [load_run(s) for s in specs]}
+    out = os.path.join(HERE, "app", "src", "data.json")
     with open(out, "w", encoding="utf-8") as f:
-        f.write(html)
-    print(f"wrote {out} ({len(html) // 1024} kB, {len(attempts)} attempts)")
+        json.dump(data, f, separators=(",", ":"))
+    n = sum(len(r["attempts"]) for r in data["runs"])
+    print(f"wrote {out} ({os.path.getsize(out) // 1024} kB, {len(data['runs'])} runs, {n} attempts)")
 
 
 if __name__ == "__main__":
