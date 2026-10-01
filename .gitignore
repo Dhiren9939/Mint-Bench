@@ -6,7 +6,7 @@ tfplan
 *.pem
 __pycache__/
 bench-sql/bench.env
-bench-dynamo/bench.env
+bench-dynamo-cache/bench.env
 # raw k6 output is too big for git, keep it somewhere else
 **/results/**/k6.csv*
 # the dashboard app: dependencies, build output, and the data it was built from (dashboard.html in the root has all of it)

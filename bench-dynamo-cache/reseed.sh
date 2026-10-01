@@ -3,7 +3,7 @@
 # The seed runs on the backend EC2 over ssh (its role can write the table, this box has no rights on it)
 # and seed.csv is copied back.
 #
-#   BACKEND=admin@<backend ip> DYNAMO_TABLE=<table> bench-dynamo/reseed.sh
+#   BACKEND=admin@<backend ip> DYNAMO_TABLE=<table> bench-dynamo-cache/reseed.sh
 #
 # ssh from the load generator to the backend needs a key. Either connect to the load generator
 # with ssh -A, or copy a key onto it and set SSH_KEY=<path>.

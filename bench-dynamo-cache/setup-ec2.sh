@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sets up the bench-dynamo backend EC2 (Debian). The Mint infra runs this from user data,
+# Sets up the bench-dynamo-cache backend EC2 (Debian). The Mint infra runs this from user data,
 # but you can also run it by hand on the box to retry.
 # Needs the Mint and Mint-Bench checkouts, MINT_DIR and BENCH_DIR say where they are
 # (user data puts them in /opt/src).
@@ -62,7 +62,7 @@ sudo docker build -t $IMAGE "$MINT_DIR/backend"
 sudo docker builder prune -af
 
 sudo -E env IMAGE_TAG=$IMAGE DYNAMO_TABLE="$DYNAMO_TABLE" AWS_REGION="$AWS_REGION" \
-  docker compose -f $CONFIG_DIR/docker-compose.prod.yml -f "$BENCH_DIR/bench-dynamo/compose.override.yml" up -d
+  docker compose -f $CONFIG_DIR/docker-compose.prod.yml -f "$BENCH_DIR/bench-dynamo-cache/compose.override.yml" up -d
 
 # a file code that doesn't exist should come back as a 404 (that also proves the role can read the table)
 for i in $(seq 1 30); do

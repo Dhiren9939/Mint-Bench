@@ -2,7 +2,7 @@
 # Run this on the load generator once a run has finished. It pulls the CloudWatch numbers for
 # every attempt into the run folder. The raw k6 data is left as it is.
 #
-#   bench-dynamo/after.sh [run-id]        (the latest run if you leave the id out)
+#   bench-dynamo-cache/after.sh [run-id]        (the latest run if you leave the id out)
 #
 # Needs BACKEND_ID and DYNAMO_TABLE, see bench.env.example. Do it before tearing anything down.
 set -euo pipefail
@@ -24,7 +24,7 @@ export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-ap-south-1}"
 command -v aws > /dev/null || sudo apt-get install -y awscli
 
 echo "== cloudwatch, one export per attempt"
-python3 "$ROOT/common/export-search.py" bench-dynamo "$RUN" --backend "$BACKEND_ID" --loadgen "$LOADGEN_ID" --db "$DYNAMO_TABLE"
+python3 "$ROOT/common/export-search.py" bench-dynamo-cache "$RUN" --backend "$BACKEND_ID" --loadgen "$LOADGEN_ID" --db "$DYNAMO_TABLE"
 
 echo "== done, everything is in $DIR"
 cat "$DIR/search.json"
