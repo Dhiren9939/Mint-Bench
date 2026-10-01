@@ -1,0 +1,13 @@
+[
+  {
+    "source": "db",
+    "namespace": "AWS/DynamoDB",
+    "dimensions": { "TableName": "{db}" },
+    "metrics": [
+      "ConsumedReadCapacityUnits", "ConsumedWriteCapacityUnits",
+      "SuccessfulRequestLatency", "ReturnedItemCount",
+      "ThrottledRequests", "ReadThrottleEvents", "WriteThrottleEvents",
+      "SystemErrors", "UserErrors", "ConditionalCheckFailedRequests"
+    ]
+  }
+]
