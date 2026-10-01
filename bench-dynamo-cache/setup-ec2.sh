@@ -4,12 +4,14 @@
 # Needs the Mint and Mint-Bench checkouts, MINT_DIR and BENCH_DIR say where they are
 # (user data puts them in /opt/src).
 #
-#   DYNAMO_TABLE=<table name> AWS_REGION=ap-south-1 ./setup-ec2.sh
+#   DYNAMO_TABLE=<table> REDIS_HOST=<elasticache endpoint> REDIS_AUTH_TOKEN=... AWS_REGION=ap-south-1 ./setup-ec2.sh
 #
-# The table is made by terraform and the box's instance role can read and write it, so there are no keys here.
+# The table and the ElastiCache group are made by terraform. The box's instance role can read and write
+# the table, so there are no AWS keys here. The cache is the real ElastiCache (Valkey, TLS and AUTH),
+# the api reaches it the way the prod deploy does, there is no Redis on this box.
 set -euo pipefail
 
-: "${DYNAMO_TABLE:?}"
+: "${DYNAMO_TABLE:?}" "${REDIS_HOST:?}" "${REDIS_AUTH_TOKEN:?}"
 AWS_REGION="${AWS_REGION:-ap-south-1}"
 MINT_DIR="${MINT_DIR:-$HOME/Mint}"
 BENCH_DIR="${BENCH_DIR:-$HOME/Mint-Bench}"
@@ -54,22 +56,41 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-c
 
 # config the container mounts
 sudo mkdir -p $CONFIG_DIR
-sudo cp "$MINT_DIR"/backend/config/*.properties "$MINT_DIR/backend/docker-compose.prod.yml" $CONFIG_DIR
+sudo cp "$MINT_DIR"/backend/src/main/resources/application.properties "$MINT_DIR"/backend/src/main/resources/application-prod.properties \
+  "$MINT_DIR/backend/docker-compose.prod.yml" $CONFIG_DIR
 sudo chmod -R 755 /opt/mint-backend
 
 # build on the box, then drop the build cache so the 8gb disk doesn't fill up
 sudo docker build -t $IMAGE "$MINT_DIR/backend"
 sudo docker builder prune -af
 
-sudo -E env IMAGE_TAG=$IMAGE DYNAMO_TABLE="$DYNAMO_TABLE" AWS_REGION="$AWS_REGION" \
-  docker compose -f $CONFIG_DIR/docker-compose.prod.yml -f "$BENCH_DIR/bench-dynamo-cache/compose.override.yml" up -d
+COMPOSE=(docker compose -f $CONFIG_DIR/docker-compose.prod.yml -f "$BENCH_DIR/bench-dynamo-cache/compose.override.yml")
+sudo -E env IMAGE_TAG=$IMAGE DYNAMO_TABLE="$DYNAMO_TABLE" AWS_REGION="$AWS_REGION" USER_FILES_BUCKET=mint-user-files-bucket \
+  REDIS_HOST="$REDIS_HOST" REDIS_AUTH_TOKEN="$REDIS_AUTH_TOKEN" "${COMPOSE[@]}" up -d
 
 # a file code that doesn't exist should come back as a 404 (that also proves the role can read the table)
 for i in $(seq 1 30); do
   code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost/api/v1/file/aaaaaa || true)
-  [ "$code" = 404 ] && { echo "api is up"; exit 0; }
+  [ "$code" = 404 ] && break
   sleep 5
 done
-echo "api didn't come up, last status $code"
-sudo docker compose -f $CONFIG_DIR/docker-compose.prod.yml logs --tail 50 api
+if [ "$code" != 404 ]; then
+  echo "api didn't come up, last status $code"
+  sudo env IMAGE_TAG=$IMAGE DYNAMO_TABLE="$DYNAMO_TABLE" REDIS_HOST="$REDIS_HOST" REDIS_AUTH_TOKEN="$REDIS_AUTH_TOKEN" USER_FILES_BUCKET=x \
+    "${COMPOSE[@]}" logs --tail 50 api
+  exit 1
+fi
+echo "api is up"
+
+# the api fails open when Redis is unreachable, so the 404 above doesn't prove the limiter and the cache work.
+# A wrong token or a blocked port would only show up as a run with no cache at all, so check it here.
+for i in $(seq 1 12); do
+  if sudo docker logs mint-backend-api-1 2>&1 | grep -q "Connected to Redis"; then
+    echo "redis (elasticache) is connected"
+    exit 0
+  fi
+  sleep 5
+done
+echo "the api never connected to $REDIS_HOST, the run would have no rate limiter and no cache"
+sudo docker logs --tail 30 mint-backend-api-1
 exit 1

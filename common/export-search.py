@@ -32,6 +32,7 @@ def main():
     ap.add_argument("--backend")
     ap.add_argument("--loadgen")
     ap.add_argument("--db")
+    ap.add_argument("--cache")
     a = ap.parse_args()
 
     run = os.path.join(ROOT, a.arm, "results", a.run_id)
@@ -40,7 +41,7 @@ def main():
         cmd = [sys.executable, os.path.join(HERE, "export-run.py"), a.arm,
                f"{a.run_id}/vus-{meta['vus']}",
                "--start", iso(meta["start"] - MARGIN_S), "--end", iso(meta["end"] + MARGIN_S)]
-        for flag in ("backend", "loadgen", "db"):
+        for flag in ("backend", "loadgen", "db", "cache"):
             if getattr(a, flag):
                 cmd += [f"--{flag}", getattr(a, flag)]
         print("exporting", meta["vus"], "users")

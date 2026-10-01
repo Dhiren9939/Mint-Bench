@@ -9,5 +9,23 @@
       "ThrottledRequests", "ReadThrottleEvents", "WriteThrottleEvents",
       "SystemErrors", "UserErrors", "ConditionalCheckFailedRequests"
     ]
+  },
+  {
+    "source": "cache-001",
+    "namespace": "AWS/ElastiCache",
+    "dimensions": { "CacheClusterId": "{cache}-001" },
+    "metrics": [
+      "CPUUtilization", "EngineCPUUtilization", "DatabaseMemoryUsagePercentage", "CurrConnections", "NewConnections",
+      "NetworkBytesIn", "NetworkBytesOut", "CacheHits", "CacheMisses", "GetTypeCmds", "SetTypeCmds", "EvalBasedCmds"
+    ]
+  },
+  {
+    "source": "cache-002",
+    "namespace": "AWS/ElastiCache",
+    "dimensions": { "CacheClusterId": "{cache}-002" },
+    "metrics": [
+      "CPUUtilization", "EngineCPUUtilization", "DatabaseMemoryUsagePercentage", "CurrConnections",
+      "NetworkBytesIn", "NetworkBytesOut", "ReplicationLag"
+    ]
   }
 ]

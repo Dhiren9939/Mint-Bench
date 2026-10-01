@@ -2,6 +2,7 @@
 services:
   api:
     environment:
+      MINT_ENV: bench-dynamo-cache
       MINT_CAP_GLOBAL_GET: "100000000"
       MINT_CAP_GLOBAL_POST: "100000000"
       MINT_CAP_IP_GET: "100000000"

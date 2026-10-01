@@ -4,13 +4,13 @@
 #
 #   bench-dynamo-cache/after.sh [run-id]        (the latest run if you leave the id out)
 #
-# Needs BACKEND_ID and DYNAMO_TABLE, see bench.env.example. Do it before tearing anything down.
+# Needs BACKEND_ID, DYNAMO_TABLE and CACHE_ID, see bench.env.example. Do it before tearing anything down.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
 [ -f "$HERE/bench.env" ] && { set -a; . "$HERE/bench.env"; set +a; }
-: "${BACKEND_ID:?}" "${DYNAMO_TABLE:?}"
+: "${BACKEND_ID:?}" "${DYNAMO_TABLE:?}" "${CACHE_ID:?}"
 
 RUN="${1:-$(ls -1t "$HERE/results" | head -1)}"
 DIR="$HERE/results/$RUN"
@@ -24,7 +24,7 @@ export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-ap-south-1}"
 command -v aws > /dev/null || sudo apt-get install -y awscli
 
 echo "== cloudwatch, one export per attempt"
-python3 "$ROOT/common/export-search.py" bench-dynamo-cache "$RUN" --backend "$BACKEND_ID" --loadgen "$LOADGEN_ID" --db "$DYNAMO_TABLE"
+python3 "$ROOT/common/export-search.py" bench-dynamo-cache "$RUN" --backend "$BACKEND_ID" --loadgen "$LOADGEN_ID" --db "$DYNAMO_TABLE" --cache "$CACHE_ID"
 
 echo "== done, everything is in $DIR"
 cat "$DIR/search.json"

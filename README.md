@@ -109,9 +109,10 @@ The backend gets the same CloudWatch agent config on every EC2 arm (`common/cwag
 
 Same flow as `bench-sql` with `bench-dynamo-cache/` in place of `bench-sql/`: `terraform apply` in the Mint `bench-dynamo-cache-lua` branch gets the backend ready from user data (`bench-dynamo-cache/setup-ec2.sh`), then on the load generator `bench-dynamo-cache/start.sh` and `bench-dynamo-cache/after.sh`, and `bench-dynamo-cache/fetch.sh` on your machine. ssh into the backend is only for watching it with `htop`. The processing (`common/summarize.py`) runs on your machine on the fetched data, not on the load generator.
 
-- Backend: the Mint `bench-dynamo-cache-lua` branch, Lua rate limiter, file metadata cache on (5 minute TTL), Redis is a container next to the api and holds the limiter and the cache. The API talks to DynamoDB with the box's instance role, there are no keys.
+- Backend: the Mint `bench-dynamo-cache-lua` branch, Lua rate limiter, file metadata cache on (5 minute TTL). The limiter and the cache both live in ElastiCache (Valkey 9, two `cache.t4g.micro` nodes, TLS and an AUTH token terraform generates), there is no Redis on the box. The API talks to DynamoDB with the box's instance role, there are no keys.
 - Table: `mint-bench-dynamo-cache-file-metadata`, on demand. `bench.env` takes it as `DYNAMO_TABLE`, `after.sh` uses it as the `--db` for the `AWS/DynamoDB` metrics in `bench-dynamo-cache/queries.json`.
 - Reseed: Dynamo has no truncate, so `seed-dynamo.py` scans and deletes every item and writes 10000 new ones. It runs on the backend over ssh (its role can write the table) and `reseed.sh` copies `seed.csv` back. Needs `python3-boto3`, `setup-ec2.sh` installs it.
+- Cache: `after.sh` takes the replication group id as `CACHE_ID` (`--cache`) and exports the `AWS/ElastiCache` metrics of both nodes (hits, misses, engine CPU, memory, connections). `setup-ec2.sh` fails if the api never connects to ElastiCache, so a run can't quietly go without the limiter and the cache.
 - The api is at `mint-bench-dynamo-cache.dhiren.xyz`.
 
 ## Notes
