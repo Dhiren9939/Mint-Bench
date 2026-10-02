@@ -32,6 +32,7 @@ def main():
     ap.add_argument("--backend")
     ap.add_argument("--loadgen")
     ap.add_argument("--db")
+    ap.add_argument("--dim", action="append", default=[], metavar="NAME=VALUE")
     a = ap.parse_args()
 
     run = os.path.join(ROOT, a.arm, "results", a.run_id)
@@ -43,6 +44,8 @@ def main():
         for flag in ("backend", "loadgen", "db"):
             if getattr(a, flag):
                 cmd += [f"--{flag}", getattr(a, flag)]
+        for d in a.dim:
+            cmd += ["--dim", d]
         print("exporting", meta["vus"], "users")
         subprocess.run(cmd, check=True)
 

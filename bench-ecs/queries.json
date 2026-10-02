@@ -1,0 +1,72 @@
+[
+  {
+    "source": "compute",
+    "namespace": "AWS/ECS",
+    "dimensions": { "ClusterName": "{cluster}", "ServiceName": "{service}" },
+    "metrics": ["CPUUtilization", "MemoryUtilization"]
+  },
+  {
+    "source": "compute",
+    "namespace": "ECS/ContainerInsights",
+    "dimensions": { "ClusterName": "{cluster}", "ServiceName": "{service}" },
+    "metrics": [
+      "RunningTaskCount", "DesiredTaskCount", "PendingTaskCount",
+      "CpuUtilized", "CpuReserved", "MemoryUtilized", "MemoryReserved",
+      "NetworkRxBytes", "NetworkTxBytes"
+    ]
+  },
+  {
+    "source": "lb",
+    "namespace": "AWS/ApplicationELB",
+    "dimensions": { "LoadBalancer": "{alb}" },
+    "metrics": [
+      "TargetResponseTime", "RequestCount", "ActiveConnectionCount", "NewConnectionCount",
+      "RejectedConnectionCount", "TargetConnectionErrorCount", "ProcessedBytes",
+      "HTTPCode_Target_2XX_Count", "HTTPCode_Target_4XX_Count", "HTTPCode_Target_5XX_Count",
+      "HTTPCode_ELB_4XX_Count", "HTTPCode_ELB_5XX_Count"
+    ]
+  },
+  {
+    "source": "lb",
+    "namespace": "AWS/ApplicationELB",
+    "dimensions": { "LoadBalancer": "{alb}", "TargetGroup": "{tg}" },
+    "metrics": ["HealthyHostCount", "UnHealthyHostCount", "TargetResponseTime"]
+  },
+  {
+    "source": "db",
+    "namespace": "AWS/DynamoDB",
+    "dimensions": { "TableName": "{table}" },
+    "metrics": [
+      "ConsumedReadCapacityUnits", "ConsumedWriteCapacityUnits", "SuccessfulRequestLatency",
+      "ThrottledRequests", "ReadThrottleEvents", "WriteThrottleEvents", "SystemErrors", "UserErrors"
+    ]
+  },
+  {
+    "source": "cache1",
+    "namespace": "AWS/ElastiCache",
+    "dimensions": { "CacheClusterId": "{cache1}" },
+    "metrics": [
+      "EngineCPUUtilization", "CPUUtilization", "CurrConnections", "NewConnections",
+      "CacheHits", "CacheMisses", "DatabaseMemoryUsagePercentage", "BytesUsedForCache",
+      "NetworkBytesIn", "NetworkBytesOut", "GetTypeCmds", "SetTypeCmds", "EvalBasedCmds",
+      "ReplicationLag"
+    ]
+  },
+  {
+    "source": "cache2",
+    "namespace": "AWS/ElastiCache",
+    "dimensions": { "CacheClusterId": "{cache2}" },
+    "metrics": [
+      "EngineCPUUtilization", "CPUUtilization", "CurrConnections", "NewConnections",
+      "CacheHits", "CacheMisses", "DatabaseMemoryUsagePercentage", "BytesUsedForCache",
+      "NetworkBytesIn", "NetworkBytesOut", "GetTypeCmds", "SetTypeCmds", "EvalBasedCmds",
+      "ReplicationLag"
+    ]
+  },
+  {
+    "source": "app",
+    "namespace": "Mint",
+    "dimensions": { "env": "{env}" },
+    "metric_prefixes": ["mint.", "jvm.", "tomcat.", "http.server", "process.", "system.cpu", "lettuce", "executor"]
+  }
+]

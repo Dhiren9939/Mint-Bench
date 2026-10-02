@@ -3,7 +3,7 @@ set -euxo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y redis-server git jq curl gnupg ca-certificates
+apt-get install -y redis-server git jq curl gnupg ca-certificates python3-boto3 awscli
 
 # k6 from the official apt repo
 curl -fsSL https://dl.k6.io/key.gpg | gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
@@ -13,6 +13,8 @@ apt-get install -y k6
 
 # Local Redis for the k6 shared code pool, bound to loopback only
 sed -i 's/^bind .*/bind 127.0.0.1 -::1/; s/^protected-mode .*/protected-mode yes/' /etc/redis/redis.conf
+# Every k6 user opens its own connection, the default of 10000 refuses the rest past 10000 users
+echo "maxclients 60000" >> /etc/redis/redis.conf
 systemctl enable redis-server
 systemctl restart redis-server
 
@@ -26,6 +28,7 @@ net.ipv4.ip_local_port_range = 1024 65535
 net.ipv4.tcp_tw_reuse = 1
 net.core.somaxconn = 65535
 fs.file-max = 2097152
+-net.netfilter.nf_conntrack_max = 262144
 SYSCTL
 sysctl --system
 

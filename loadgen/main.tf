@@ -128,3 +128,35 @@ resource "aws_instance" "loadgen" {
     Name = "mint-loadgen"
   }
 }
+
+# bench-ecs: reseed.sh empties and fills the table from this box
+resource "aws_iam_role_policy" "seed_table" {
+  count = var.bench_table_arn == null ? 0 : 1
+
+  name = "mint-loadgen-seed-table"
+  role = aws_iam_role.loadgen.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:DescribeTable", "dynamodb:Scan", "dynamodb:BatchWriteItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
+      Resource = var.bench_table_arn
+    }]
+  })
+}
+
+# bench-ecs: reseed.sh puts the service back to its minimum task count and waits for it
+resource "aws_iam_role_policy" "reset_service" {
+  count = var.bench_ecs_service_arn == null ? 0 : 1
+
+  name = "mint-loadgen-reset-service"
+  role = aws_iam_role.loadgen.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ecs:UpdateService", "ecs:DescribeServices"]
+      Resource = var.bench_ecs_service_arn
+    }]
+  })
+}

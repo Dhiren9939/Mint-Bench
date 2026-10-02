@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Finds how many users an arm can hold. Run on the load generator.
 #
-#   RESEED=bench-sql/reseed.sh BASE_URL=http://mint-bench-sql.dhiren.xyz k6/find-max.sh <arm>
+#   RESEED=bench-sql/reseed.sh BASE_URL=http://mint-bench-sql.dhiren.xyz k6/find-max.sh bench-sql
 #
 # Each pass is a k6 run at N users (warm up, bench, cool down, see mint.js). A pass that
 # keeps the thresholds is a pass, one that crosses them is a fail. Start at START users.
@@ -27,7 +27,7 @@ REST_S="${REST_S:-120}"
 WARMUP_S="${WARMUP_S:-120}"
 BENCH_S="${BENCH_S:-300}"
 COOLDOWN_S="${COOLDOWN_S:-120}"
-BASE_URL="${BASE_URL:-http://mint-bench-sql.dhiren.xyz}"
+: "${BASE_URL:?set BASE_URL to the address of the arm}"
 RUN_ID="${RUN_ID:-$(date -u +%Y-%m-%d-%H%M)}"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -45,7 +45,7 @@ run_pass() {
 
   local start end rc=0
   start=$(date -u +%s)
-  k6 run -e BASE_URL="$BASE_URL" -e VUS="$n" -e WARMUP_S="$WARMUP_S" -e BENCH_S="$BENCH_S" -e COOLDOWN_S="$COOLDOWN_S" \
+  k6 run -e BASE_URL="$BASE_URL" -e THINK_JITTER="${THINK_JITTER:-0}" -e VUS="$n" -e WARMUP_S="$WARMUP_S" -e BENCH_S="$BENCH_S" -e COOLDOWN_S="$COOLDOWN_S" \
     --out csv="$dir/k6.csv.gz" --summary-export="$dir/summary.json" "$HERE/mint.js" || rc=$?
   end=$(date -u +%s)
 

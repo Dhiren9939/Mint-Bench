@@ -42,7 +42,9 @@ def discover(spec, values):
     for k, v in dims.items():
         args += ["--dimensions", f"Name={k},Value={v}"]
     found = aws(*args).get("Metrics", [])
-    return [m for m in found if m["MetricName"] in spec["metrics"]]
+    # metric_prefixes catches families whose exact names aren't known, like the app's micrometer meters
+    prefixes = tuple(spec.get("metric_prefixes", []))
+    return [m for m in found if m["MetricName"] in spec.get("metrics", []) or (prefixes and m["MetricName"].startswith(prefixes))]
 
 
 def get_data(queries, start, end):
@@ -75,10 +77,13 @@ def main():
     p.add_argument("--backend", help="backend EC2 instance id")
     p.add_argument("--loadgen", help="load generator instance id")
     p.add_argument("--db", help="RDS instance identifier, the first part of the endpoint")
+    p.add_argument("--dim", action="append", default=[], metavar="NAME=VALUE",
+                   help="a value for a {name} placeholder in an arm's queries.json, repeat for more")
     p.add_argument("--out", help="output folder, default <arm>/results/<run-id>")
     a = p.parse_args()
 
     values = {k: v for k, v in {"backend": a.backend, "loadgen": a.loadgen, "db": a.db}.items() if v}
+    values.update(d.split("=", 1) for d in a.dim)
     specs = load(os.path.join(ROOT, "common", "queries.json")) + load(os.path.join(ROOT, a.arm, "queries.json"))
 
     queries, meta = [], {}
@@ -86,7 +91,7 @@ def main():
         try:
             found = discover(spec, values)
         except KeyError as e:
-            print(f"skipping {spec['source']} {spec['namespace']}: no --{e.args[0]} given")
+            print(f"skipping {spec['source']} {spec['namespace']}: no {e.args[0]} given")
             continue
         for m in found:
             dims = ";".join(f"{d['Name']}={d['Value']}" for d in m["Dimensions"] if d["Name"] not in spec["dimensions"])

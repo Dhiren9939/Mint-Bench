@@ -16,3 +16,4 @@ dashboard/app/src/data.json
 # raw output of the local docker runs, the analysis.txt next to it is what stays in git
 local/results/*/vus-*/
 local/results/smoke/
+bench-ecs/bench.env
