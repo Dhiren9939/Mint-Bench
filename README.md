@@ -6,7 +6,7 @@ Load tests for [Mint](https://github.com/Dhiren9939/Mint). Every benchmark arm u
 
 - `bench-sql`: the `db-sql` branch, RDS Postgres
 - `bench-dynamo`: Dynamo without the cache, the `bench-dynamo-lua` branch
-- Dynamo with the cache
+- `bench-cache-dynamo`: Dynamo with the file metadata cache, the `bench-cache-dynamo` branch
 - ECS, what `main` runs
 
 Only the API and the database run in each arm, no S3 and no CloudFront. Every arm gets its own folder here for the results.
@@ -20,6 +20,7 @@ Mint-Bench/
   k6/           the k6 script, the search script and the file list loader
   bench-sql/    setup, seed, start and after scripts, and results/
   bench-dynamo/ the same for the Dynamo arm
+  bench-cache-dynamo/ the same for the Dynamo arm with the cache
   dashboard/    the dashboard: build.py collects the results, app/ is the React page
   local/        the docker replica used to find the Bucket4j retry storm
 ```
@@ -114,6 +115,16 @@ Same flow as `bench-sql` with `bench-dynamo/` in place of `bench-sql/`: `terrafo
 - Table: `mint-bench-dynamo-file-metadata`, on demand. `bench.env` takes it as `DYNAMO_TABLE`, `after.sh` uses it as the `--db` for the `AWS/DynamoDB` metrics in `bench-dynamo/queries.json`.
 - Reseed: Dynamo has no truncate, so `seed-dynamo.py` scans and deletes every item and writes 10000 new ones. It runs on the backend over ssh (its role can write the table) and `reseed.sh` copies `seed.csv` back. Needs `python3-boto3`, `setup-ec2.sh` installs it.
 - The api is at `mint-bench-dynamo.dhiren.xyz`.
+
+## bench-cache-dynamo
+
+Same flow as `bench-sql` with `bench-cache-dynamo/` in place of `bench-sql/`: `terraform apply` in the Mint `bench-cache-dynamo` branch gets the backend ready from user data (`bench-cache-dynamo/setup-ec2.sh`), then on the load generator `bench-cache-dynamo/start.sh` and `bench-cache-dynamo/after.sh`, and `bench-cache-dynamo/fetch.sh` on your machine.
+
+- Backend: the Mint `bench-cache-dynamo` branch, Lua rate limiter, file metadata cache on (5 minute TTL, filled on a read miss). The limiter and the cache both live in ElastiCache (Valkey 9, two `cache.t4g.micro` nodes, TLS and an AUTH token), there is no Redis on the box. The API talks to DynamoDB with the box's instance role, there are no keys. The box runs on EC2 and CloudFront and S3 are not part of it.
+- Table: `mint-bench-cache-dynamo-file-metadata`, on demand. `bench.env` takes it as `DYNAMO_TABLE`, `after.sh` uses it as the `--db` for the `AWS/DynamoDB` metrics in `bench-cache-dynamo/queries.json`.
+- Cache: `after.sh` takes the replication group id as `CACHE_ID` (`--cache`, `mint-bench-cache-dynamo-cache`) and exports the `AWS/ElastiCache` metrics of both nodes.
+- App metrics: the api publishes to the `Mint` CloudWatch namespace (dimension `env=bench-cache-dynamo`): `mint.cache.get` (hit, miss, error), `mint.cache.put`, `mint.db.duration` (DynamoDB calls), `mint.ratelimit.*`, `mint.redis.connected`, plus HTTP, Tomcat and JVM. `queries.json` exports them as `backend` rows.
+- The api is at `mint-bench-cache-dynamo.dhiren.xyz`.
 
 ## Notes
 
